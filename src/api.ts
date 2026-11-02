@@ -1,7 +1,7 @@
 /**
  * 与 `wist-cred` 的接口契约。
  *
- * 页面只调这四条，且**从不自己设置 `x-wist-operator`**：
+ * 页面只调这几条，且**从不自己设置 `x-wist-operator`**：
  * 发布态由入口 nginx（basic auth 之后）注入，dev 由 vite 代理注入。
  */
 
@@ -27,13 +27,26 @@ export interface CreatedCredential extends Credential {
 }
 
 export interface CreateInput {
-  subject: string;
+  /** 可选：不给时服务端用 `audience` 填（页面不问这一项）。 */
+  subject?: string;
   purpose: string;
   roles: string[];
   audience: string;
   resources?: Record<string, string[]>;
   ttl_seconds?: number;
   break_glass?: boolean;
+}
+
+/** 签发上限：页面用它把超出上限的有效期选项标出来。 */
+export interface IssuePolicy {
+  max_ttl_seconds: number;
+  break_glass_max_ttl_seconds: number;
+  overlap_seconds: number;
+  digest: string;
+}
+
+export function getPolicy(): Promise<IssuePolicy> {
+  return request<IssuePolicy>("/policy");
 }
 
 export class ApiError extends Error {
@@ -95,4 +108,99 @@ export function revokeCredential(credentialId: string): Promise<Credential> {
   return request<Credential>(`/credentials/${encodeURIComponent(credentialId)}/revoke`, {
     method: "POST",
   });
+}
+
+/** 重新投递的结果：同一摘要、同一 revision，只是再推一次。 */
+export interface Redelivery {
+  credential_id: string;
+  audience: string;
+  delivered_to: string;
+  revision: number;
+}
+
+/** 签发时推送失败（或验证方表丢了）用它补一次；不改任何字段。 */
+export function redeliverCredential(credentialId: string): Promise<Redelivery> {
+  return request<Redelivery>(`/credentials/${encodeURIComponent(credentialId)}/redeliver`, {
+    method: "POST",
+  });
+}
+
+// ── 验证方接入（onboarding）─────────────────────────────────────────────
+
+/** 一个认证系统（验证方 X）。后端只给元数据与心跳状态，材料一概不出。 */
+export interface OnboardingPeer {
+  /** 名称：页面显示名，同时也是凭证的 `audience`。 */
+  name: string;
+  /** 证书 SAN。null = 对方还没登记（登记时自己上报）。 */
+  host: string | null;
+  /** 收摘要的地址；null = 只做手工分发。 */
+  endpoint: string | null;
+  /** 这个系统自己能验的角色；空 = 还没上报。 */
+  roles: string[];
+  /** 心跳探测地址（缺省由 endpoint 推到同源 /healthz）。 */
+  probe_url: string | null;
+  created_at: number;
+  created_by: string;
+  health: "up" | "down" | "unknown";
+  last_seen_at: number | null;
+  latency_ms: number | null;
+  last_error: string | null;
+}
+
+export interface OnboardingState {
+  peers: OnboardingPeer[];
+  script_ttl_seconds: number;
+  heartbeat_seconds: number;
+  /** false = 这个部署没有签发 CA / 客户端 CA，接入做不了。 */
+  enabled: boolean;
+  /** false = 没有 [push]，凭据只能手工分发。 */
+  push_enabled: boolean;
+}
+
+/** 一次性接入链接。`path` 是相对路径，绝对地址由页面按自己的 origin 拼。 */
+export interface OnboardingLink {
+  peer: string;
+  /** null = 还没登记，主机名未知。 */
+  host: string | null;
+  path: string;
+  expires_in: number;
+}
+
+export interface CreatePeerInput {
+  name: string;
+  /** 一般不用给：主机名与收数地址都由对方登记时上报。 */
+  host?: string;
+  endpoint?: string;
+  healthz?: string;
+  /** 一般也不用给：由对方登记时上报。 */
+  roles?: string[];
+}
+
+export function listOnboardingPeers(): Promise<OnboardingState> {
+  return request<OnboardingState>("/onboarding/peers");
+}
+
+export function createPeer(input: CreatePeerInput): Promise<OnboardingPeer> {
+  return request<OnboardingPeer>("/onboarding/peers", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function mintOnboardingLink(peer: string): Promise<OnboardingLink> {
+  return request<OnboardingLink>(
+    `/onboarding/peers/${encodeURIComponent(peer)}/script`,
+    { method: "POST" },
+  );
+}
+
+/** 改收数地址；传 null = 退回手工分发。 */
+export function setPeerEndpoint(
+  peer: string,
+  endpoint: string | null,
+): Promise<OnboardingPeer> {
+  return request<OnboardingPeer>(
+    `/onboarding/peers/${encodeURIComponent(peer)}/endpoint`,
+    { method: "POST", body: JSON.stringify({ endpoint }) },
+  );
 }

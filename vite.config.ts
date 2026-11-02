@@ -22,6 +22,12 @@ export default defineConfig({
         changeOrigin: true,
         headers: { "x-wist-operator": operator },
       },
+      // 一次性接入脚本。发布态由 nginx 单独一条 location 托管（不做 basic auth），
+      // dev 下必须一起代理，否则页面生成的 curl 地址在 5174 上会 404。
+      "/onboarding": {
+        target,
+        changeOrigin: true,
+      },
     },
   },
 });

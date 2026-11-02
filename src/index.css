@@ -80,8 +80,139 @@ body {
 
 .panel-head {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 16px;
+}
+
+.panel-head h2 {
+  margin-bottom: 4px;
+}
+
+.panel-head p {
+  margin: 0;
+}
+
+.panel-head + form {
+  margin-top: 16px;
+}
+
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+/* 认证系统列表：用行而不是表格 —— 地址很长，表格的 auto layout 会被撑破
+   （表现是最后一列被压成一字一行）。 */
+.peer-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.peer-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.1fr) minmax(110px, 0.6fr) minmax(0, 2.4fr) auto;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 10px 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.peer-id {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.peer-name {
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.peer-host {
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.peer-roles {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.peer-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.peer-target {
+  min-width: 0;
+}
+
+.peer-endpoint,
+button.peer-endpoint {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+button.peer-endpoint:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.peer-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.peer-error {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding-top: 2px;
+  color: var(--danger);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.inline-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inline-edit input {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  font-family: var(--mono);
 }
 
 .grid {
@@ -98,11 +229,111 @@ label {
   color: var(--muted);
 }
 
+.field-hint {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.field.wide {
+  margin-top: 12px;
+}
+
+/* 固定枚举值直接摆出来，不要下拉。 */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  padding: 5px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.chip:hover:not(:disabled):not(.active) {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.chip.active {
+  border-color: var(--accent);
+  background: #16324f;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+
+/* 把「程序 × 认证系统」读成一句话，而不是两个并列的名字字段。 */
+.sentence-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.sentence-word {
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.sentence-input,
+.sentence-row .static-field {
+  flex: 1 1 200px;
+  min-width: 160px;
+  max-width: 340px;
+}
+
+.sentence-hint {
+  margin: 8px 0 0;
+}
+
+/* 句子行下面接普通表单控件时留点呼吸。 */
+.sentence-hint + .grid {
+  margin-top: 16px;
+}
+
+/* 只有一个选项时的“只读字段”：长得像输入框，但不可交互。 */
+.static-field {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #0d1727;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 label.wide {
   margin-top: 12px;
 }
 
-input:not([type="checkbox"]) {
+input:not([type="checkbox"]),
+select {
+  width: 100%;
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -112,9 +343,78 @@ input:not([type="checkbox"]) {
   font-family: inherit;
 }
 
-input:focus {
+input:focus,
+select:focus {
   outline: none;
   border-color: var(--accent);
+}
+
+select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 页面切换 */
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin-top: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.tab:hover:not(.active) {
+  color: var(--text);
+}
+
+.tab.active {
+  color: var(--text);
+  background: var(--panel);
+  border-color: var(--border);
+}
+
+.badge {
+  min-width: 18px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 400;
+  text-align: center;
+}
+
+.linklike {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-weight: 400;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.panel-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
 }
 
 .form-actions {
@@ -184,6 +484,12 @@ button.danger:hover:not(:disabled) {
   background: #2a2213;
 }
 
+.banner.link {
+  margin-top: 14px;
+  border: 1px solid var(--accent);
+  background: #0e1c2e;
+}
+
 .token-head {
   display: flex;
   align-items: center;
@@ -248,6 +554,13 @@ tr:last-child td {
   text-align: right;
 }
 
+/* 行内动作：撤销 / 重推 并排，右对齐。 */
+.row-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
 .mono {
   font-family: var(--mono);
 }
@@ -282,6 +595,13 @@ tr:last-child td {
 
 .state.expired {
   color: var(--muted);
+}
+
+.error-text {
+  max-width: 26rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .footer {
