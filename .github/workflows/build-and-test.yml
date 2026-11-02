@@ -15,13 +15,15 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout repository
+        uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - name: Install Node
+        uses: actions/setup-node@v7
         with:
-          node-version: "24"
+          node-version: 24
           cache: npm
 
       # `npm run build` = tsc --noEmit + vite build：类型错和打包错都在这一步暴露。
