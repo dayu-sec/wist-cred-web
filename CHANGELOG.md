@@ -4,8 +4,8 @@
 
 ### 变更
 
-- **镜像改从腾讯云 TCR 拉取**：`dy-sec.tencentcloudcr.com/cloud/wist-cred-web:<tag>`，
-  amd64 / arm64 多架构。
+- **镜像发布到腾讯云 TCR**：`dy-sec.tencentcloudcr.com/cloud/wist-cred-web:<tag>`，
+  amd64 / arm64 多架构，部署侧从那里拉取。
 
 ## [0.1.0-alpha] - 2026-11-03
 
