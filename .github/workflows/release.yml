@@ -23,7 +23,7 @@ jobs:
 
       - run: npm run build
 
-  # 2. 构建并推送多架构镜像（ghcr.io）。静态站点不需要预编译二进制，
+  # 2. 构建并推送多架构镜像（腾讯云 TCR）。静态站点不需要预编译二进制，
   #    node/nginx 基础镜像本身就是多架构的，直接 cross-build 即可。
   docker:
     needs: [build]
@@ -38,32 +38,25 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      - uses: docker/login-action@v3
+      # 国内镜像源（腾讯云 TCR）：凭据存 GitHub Secrets：TCR_USERNAME / TCR_PASSWORD。
+      - name: Login to TCR
+        uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # 国内镜像源（腾讯云 TCR）：要启用就把下面几段打开，并配好
-      # Variables：TCR_REGISTRY、TCR_PROJECT；Secrets：TCR_USERNAME / TCR_PASSWORD。
-      #
-      # - uses: docker/login-action@v3
-      #   with:
-      #     registry: ${{ vars.TCR_REGISTRY }}
-      #     username: ${{ secrets.TCR_USERNAME }}
-      #     password: ${{ secrets.TCR_PASSWORD }}
+          registry: dy-sec.tencentcloudcr.com
+          username: ${{ secrets.TCR_USERNAME }}
+          password: ${{ secrets.TCR_PASSWORD }}
 
       - name: Compute image tags
         id: meta
         run: |
           # 预发布 tag 只推该 tag，不覆盖 :latest（理由同 wist-cred）。
-          ghcr="ghcr.io/${{ github.repository }}"
-          tags="$(printf '%s:%s' "$ghcr" "${{ github.ref_name }}")"
+          tcr="dy-sec.tencentcloudcr.com/cloud/wist-cred-web"
+          tags="$(printf '%s:%s' "$tcr" "${{ github.ref_name }}")"
           case "${{ github.ref_name }}" in
             *-*)
               ;;
             *)
-              tags="$(printf '%s\n%s' "$tags" "$ghcr:latest")"
+              tags="$(printf '%s\n%s' "$tags" "$tcr:latest")"
               ;;
           esac
           printf 'tags<<__EOF__\n%s\n__EOF__\n' "$tags" >> "$GITHUB_OUTPUT"

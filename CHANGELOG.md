@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1-alpha] - 2026-11-03
+
+### 变更
+
+- **镜像改从腾讯云 TCR 拉取**：`dy-sec.tencentcloudcr.com/cloud/wist-cred-web:<tag>`，
+  amd64 / arm64 多架构。
+
 ## [0.1.0-alpha] - 2026-11-03
 
 首个版本：凭据服务的管理页面，两页 ——「访问凭证」与「认证系统」。
