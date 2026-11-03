@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.6-alpha] - 2026-11-03
+
+### 变更：去掉「cred.toml 路径」输入框
+
+review 发现它会生产约束打架：`cred.toml` 里是**相对文件名**，必须与材料同目录，
+所以支持“改路径”只会诱人改错。现在面板只留「重启命令」，命令拼成：
+
+```
+curl -fsSLk <url> | bash -s -- --restart 'gops run stop && gops run start'
+```
+
+- 面板文案改成：脚本会在材料目录生成 `cred.toml`，程序启动加 `--credentials` 指过来。
+- 保存时 `config_path` 发 `null`（清掉早期版本可能存下的值）。
+
 ## [0.2.4-alpha] - 2026-11-03
 
 ### 变更：接入命令把参数直接展开（复制即跑）

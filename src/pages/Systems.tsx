@@ -51,16 +51,14 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
   const [saving, setSaving] = useState(false);
 
   /** 接入落点（配置文件 / 重启命令）：随认证系统存，签发时烘进脚本。 */
-  const [setupPath, setSetupPath] = useState("");
   const [setupRestart, setSetupRestart] = useState("");
   const [setupSaving, setSetupSaving] = useState(false);
 
   async function mint(peer: string) {
     setMinting(peer);
     setCopied(false);
-    // 预填上一次存下的落点：改完保存直接重新签发，不用再想。
+    // 预填上一次存下的重启命令：改完保存直接重新签发，不用再想。
     const record = boarding?.peers.find((item) => item.name === peer);
-    setSetupPath(record?.config_path ?? "");
     setSetupRestart(record?.restart_cmd ?? "");
     try {
       setLink(await mintOnboardingLink(peer));
@@ -77,7 +75,6 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
     setCopied(
       await copyText(
         linkCommand(link.path, {
-          configPath: setupPath,
           restartCmd: setupRestart,
         }),
       ),
@@ -91,7 +88,7 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
     setSetupSaving(true);
     try {
       await setPeerSetup(peer, {
-        config_path: setupPath.trim() || null,
+        config_path: null,
         restart_cmd: setupRestart.trim() || null,
       });
       setLocalError(null);
@@ -327,20 +324,15 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
 
           <div className="setup-fields">
             <p className="muted small">
-              接入落点（可选）：脚本会产出一份与程序无关的 <span className="mono">cred.toml</span>
-              （只写 [identity] 与 [verify]），程序启动时加一行
+              脚本会在材料目录里生成 <span className="mono">cred.toml</span>（只写
+              [identity] 与 [verify]），程序启动时加一行
               <span className="mono">--credentials &lt;路径&gt;</span> 指过来就行。
-              这里只需在不想用默认位置时改路径。
+              它必须与材料同目录（相对路径按文件目录解），所以这里不提供改路径。
             </p>
             <div className="inline-edit">
               <input
-                value={setupPath}
-                placeholder="cred.toml 路径（可选，默认 <材料目录>/cred.toml）"
-                onChange={(event) => setSetupPath(event.target.value)}
-              />
-              <input
                 value={setupRestart}
-                placeholder="重启命令（可选），如 systemctl restart wist-center"
+                placeholder="重启命令（可选），如 gops run stop && gops run start"
                 onChange={(event) => setSetupRestart(event.target.value)}
               />
               <button
@@ -354,19 +346,14 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
           </div>
 
           <code className="secret">
-            {linkCommand(link.path, {
-              configPath: setupPath,
-              restartCmd: setupRestart,
-            })}
+            {linkCommand(link.path, { restartCmd: setupRestart })}
           </code>
           <div className="token-actions">
             <button type="button" onClick={() => void copy()}>
               {copied ? "已复制" : "复制"}
             </button>
             <span className="muted small">
-              {setupPath.trim()
-                ? `执行后会写入 ${setupPath.trim()}`
-                : "不带 --config：只落材料并打印片段（要写配置就在上面填路径）"}
+              落点与材料同目录；cred.toml 会被整份重写
             </span>
           </div>
         </section>
