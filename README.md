@@ -3,7 +3,7 @@
 凭据服务 `wist-cred` 的**管理页面**：为程序创建凭据、一次性展示明文、查看与撤销。
 
 > 设计口径：`wist-design/doc/design/foundation/auth-token-verification.md`
-> （D16 凭据由人为程序创建、D17 页面与认证解耦）。
+> （D16 凭据由人为程序创建；人机面的验证由**本服务自己**做，不靠入口反代）。
 
 ## 页面做什么
 
@@ -16,14 +16,17 @@
 
 ## 身份与安全
 
-**页面从不自己设置 `x-wist-operator`。**
+**口径：验证在产品里，不在反代里。** 页面上有一个登录框，输部署方设置的口令；
+口令只存在**本标签页**（`sessionStorage`），每次请求带 `Authorization: Bearer <口令>`，
+由 `wist-cred` 自己验（配置里只有它的 `sha256`）。
 
-| 环境 | 谁注入 |
+| 情况 | 页面行为 |
 |---|---|
-| 发布态 | 入口 nginx：先做 basic auth（阶段一），再把 `$remote_user` 写进请求头 |
-| dev | vite 代理（`vite.config.ts`），值为 `WIST_OPERATOR`，默认 `dev` |
+| 没口令 / 口令不对（401） | 弹登录框（`src/Login.tsx`）；服务端说 `invalid_admin_bearer_token` 时**就地清掉**本地口令，不会拿错口令反复轮询 |
+| 已登录 | 右上角显示「退出」；换口令 = 退出重输 |
+| 开发态（cred 跑 `mode = "ingress"`） | 请求本来就通，什么都不弹 —— vite 代理注入 `x-wist-operator` 只是 dev 便利 |
 
-浏览器不持任何平台凭据，也读不到别人的 token —— 明文只在创建响应里出现一次。
+浏览器**拿不到平台签发的 token**：那是给程序用的，明文只在创建响应里出现一次。
 
 ## 开发
 
@@ -37,7 +40,7 @@ npm run dev        # http://127.0.0.1:5174
 | env | 默认 | 说明 |
 |---|---|---|
 | `WIST_CRED_TARGET` | `http://127.0.0.1:18443` | cred 地址 |
-| `WIST_OPERATOR` | `dev` | 注入的操作者名 |
+| `WIST_OPERATOR` | `dev` | dev 下注入的操作者名（发布态不走这条） |
 | `WIST_CRED_WEB_PORT` | `5174` | dev server 端口 |
 
 配套：`wist-cred-stack` 的 `./dev/svc.sh start` 会同时起 cred 与 web。

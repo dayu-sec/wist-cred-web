@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { listCredentials, listOnboardingPeers, getPolicy } from "./api";
+import { ApiError, listCredentials, listOnboardingPeers, getPolicy } from "./api";
 import type { Credential, IssuePolicy, OnboardingState } from "./api";
+import { AUTH_CHANGED_EVENT, clearPassword, getPassword } from "./auth";
 import Credentials from "./pages/Credentials";
 import Systems from "./pages/Systems";
+import Login from "./Login";
 import { describe } from "./ui";
 
 const VERSION = import.meta.env.VITE_APP_VERSION ?? "dev";
@@ -23,6 +25,10 @@ function tabFromHash(): Tab {
 export default function App() {
   const [tab, setTab] = useState<Tab>(tabFromHash);
 
+  // 登录态：口令是本标签页里的（见 auth.ts）；`locked` = 服务端说“需要口令”。
+  const [hasPassword, setHasPassword] = useState(() => Boolean(getPassword()));
+  const [locked, setLocked] = useState(false);
+
   const [items, setItems] = useState<Credential[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,13 +37,21 @@ export default function App() {
   const [boardingError, setBoardingError] = useState<string | null>(null);
   const [policy, setPolicy] = useState<IssuePolicy | null>(null);
 
+  /** 401 = 缺口令 / 口令不对：不是“页面出错”，而是该回登录框。 */
+  const needsLogin = (err: unknown) => err instanceof ApiError && err.status === 401;
+
   const reload = useCallback(async () => {
     setLoading(true);
     try {
       setItems(await listCredentials());
       setError(null);
     } catch (err) {
-      setError(describe(err));
+      if (needsLogin(err)) {
+        setLocked(true);
+        setError(null);
+      } else {
+        setError(describe(err));
+      }
     } finally {
       setLoading(false);
     }
@@ -48,7 +62,12 @@ export default function App() {
       setBoarding(await listOnboardingPeers());
       setBoardingError(null);
     } catch (err) {
-      setBoardingError(describe(err));
+      if (needsLogin(err)) {
+        setLocked(true);
+        setBoardingError(null);
+      } else {
+        setBoardingError(describe(err));
+      }
     }
   }, []);
 
@@ -68,10 +87,23 @@ export default function App() {
   }, [reload, reloadBoarding, reloadPolicy]);
 
   // 心跳状态是会变的：页面开着的时候轻量轮询一下，不然只能靠手动刷新。
+  // 没登录时不轮询：否则每 10s 一次 401，把“没口令”刷成噪音。
   useEffect(() => {
+    if (locked) return;
     const timer = window.setInterval(() => void reloadBoarding(), 10_000);
     return () => window.clearInterval(timer);
-  }, [reloadBoarding]);
+  }, [reloadBoarding, locked]);
+
+  // 口令被清掉（点退出 / 服务端说不对）→ 回登录框。
+  useEffect(() => {
+    const onAuthChanged = () => {
+      const next = Boolean(getPassword());
+      setHasPassword(next);
+      if (!next) setLocked(true);
+    };
+    window.addEventListener(AUTH_CHANGED_EVENT, onAuthChanged);
+    return () => window.removeEventListener(AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
 
   useEffect(() => {
     const onHashChange = () => setTab(tabFromHash());
@@ -87,6 +119,25 @@ export default function App() {
 
   async function refresh() {
     await Promise.all([reload(), reloadBoarding(), reloadPolicy()]);
+  }
+
+  function logout() {
+    clearPassword();
+    setLocked(true);
+    setItems([]);
+    setBoarding(null);
+    setError(null);
+    setBoardingError(null);
+  }
+
+  // 登录后回到页面：先解锁，再把三份数据拉一遍。
+  function onLoggedIn() {
+    setLocked(false);
+    void refresh();
+  }
+
+  if (locked) {
+    return <Login onDone={onLoggedIn} />;
   }
 
   return (
@@ -106,6 +157,11 @@ export default function App() {
           >
             {loading ? "刷新中…" : "刷新"}
           </button>
+          {hasPassword ? (
+            <button type="button" className="ghost" onClick={logout}>
+              退出
+            </button>
+          ) : null}
         </div>
       </header>
 

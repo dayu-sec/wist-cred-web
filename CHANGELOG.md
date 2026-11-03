@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### 新增：页面登录框（口令由 `wist-cred` 自己验）
+
+- 页面上多了一张**登录卡片**（`src/Login.tsx`）：输部署方设置的页面口令。
+  口令存 `sessionStorage`（只本标签页、关掉即失），请求带 `Authorization: Bearer`。
+- 不再依赖入口反代：以前靠 nginx basic auth 弹窗（浏览器原生对话框，没有登录框/登出）。
+- 401 处理：收到 `invalid_admin_bearer_token` 就**就地清掉**本地口令并回登录框，
+  不会拿错口令反复轮询；右上角新增「退出」。
+- 开发态（cred 跑 `mode = "ingress"`）请求本来就通，不弹登录框。
+
 ## [0.1.1-alpha] - 2026-11-03
 
 ### 变更

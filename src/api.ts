@@ -1,9 +1,11 @@
 /**
  * 与 `wist-cred` 的接口契约。
  *
- * 页面只调这几条，且**从不自己设置 `x-wist-operator`**：
- * 发布态由入口 nginx（basic auth 之后）注入，dev 由 vite 代理注入。
+ * 页面自己带凭据：`Authorization: Bearer <页面口令>`（存在本标签页，见 `auth.ts`），
+ * 由 `wist-cred` 自己验。**不靠反代注入身份** —— 那是浏览器原生弹窗，没有登录框/登出。
  */
+
+import { clearPassword, getPassword } from "./auth";
 
 export interface Credential {
   credential_id: string;
@@ -62,10 +64,13 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const password = getPassword();
   const response = await fetch(`/api/v1${path}`, {
     ...init,
     headers: {
       "content-type": "application/json",
+      // 口令在页面里输入（不是反代注入）；没有就不带，服务端会回 401 让我们弹登录框。
+      ...(password ? { authorization: `Bearer ${password}` } : {}),
       ...(init?.headers ?? {}),
     },
   });
@@ -82,11 +87,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const error = (body as { error?: { code?: string; message?: string } } | null)?.error;
-    throw new ApiError(
-      error?.code ?? "unknown_error",
-      error?.message ?? `HTTP ${response.status}`,
-      response.status,
-    );
+    const code = error?.code ?? "unknown_error";
+    // 服务端**明确**说这把口令不对时就地清掉：否则页面会拿着错口令每 10s 轮询，
+    // 人看到的永远是“口令错误”，却不知道为什么一直重试。清掉后页面会弹登录框。
+    if (response.status === 401 && code === "invalid_admin_bearer_token") {
+      clearPassword();
+    }
+    throw new ApiError(code, error?.message ?? `HTTP ${response.status}`, response.status);
   }
 
   return body as T;

@@ -610,3 +610,55 @@ tr:last-child td {
   font-size: 11px;
   text-align: center;
 }
+
+/* ── 登录门（页面口令）────────────────────────────────────────────────────
+ * 人机面的验证在**服务里**（`wist-cred` 的 token 模式），这里只是它的输入口：
+ * 一张居中卡片，不挡后台加载逻辑，也不做任何“记住我”。 */
+.login {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  padding: 28px 24px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.login-card h1 {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: 0.5px;
+}
+
+.login-label {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.login-input {
+  font-family: var(--mono);
+  letter-spacing: 0.5px;
+}
+
+.login-submit {
+  margin-top: 6px;
+  width: 100%;
+}
+
+.login-hint {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}

@@ -4,7 +4,7 @@ import { ApiError } from "./api";
 export function describe(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401) {
-      return `未认证（${error.code}）：dev 下由 vite 代理注入操作者头，发布态由入口 nginx 注入。`;
+      return `未认证：请输入页面口令（口令由部署方设置在密钥文件的 cred_web_password）。`;
     }
     if (error.code === "audience_not_configured") {
       return `受众未在服务端登记（${error.message}）：先到「认证系统」页接入它。`;
