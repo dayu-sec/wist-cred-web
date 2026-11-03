@@ -327,14 +327,15 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
 
           <div className="setup-fields">
             <p className="muted small">
-              接入落点（可选）：填了之后**命令会直接带上**，复制即跑，不用手补参数。
-              栈部署的服务（center / ingest）请留空 —— 它们的配置由 localize 渲染，
-              脚本写进去会被下一次渲染覆盖。
+              接入落点（可选）：脚本会产出一份与程序无关的 <span className="mono">cred.toml</span>
+              （只写 [identity] 与 [verify]），程序启动时加一行
+              <span className="mono">--credentials &lt;路径&gt;</span> 指过来就行。
+              这里只需在不想用默认位置时改路径。
             </p>
             <div className="inline-edit">
               <input
                 value={setupPath}
-                placeholder="配置文件（可选），如 /etc/wist/center/control-center.toml"
+                placeholder="cred.toml 路径（可选，默认 <材料目录>/cred.toml）"
                 onChange={(event) => setSetupPath(event.target.value)}
               />
               <input
