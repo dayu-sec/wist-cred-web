@@ -34,14 +34,35 @@ export function humanDuration(seconds: number): string {
   return `${minutes} 分钟`;
 }
 
+/** 单引号字面量：路径/命令里可能有空格与引号，拼进 shell 必须转义。 */
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+export interface LinkOptions {
+  /** X 上的配置文件；填了命令就带 `--config`。 */
+  configPath?: string;
+  /** 写完配置后的重启命令；填了命令就带 `--restart`。 */
+  restartCmd?: string;
+}
+
 /**
- * 拼成可直接粘贴的一条命令：origin 用页面自己的，cred 只返回相对路径。
+ * 接入命令：**参数直接展开在命令里**（不再让人手补 `--config`）。
+ *
+ * 管道给 bash 时必须 `-s --`，否则 `--config` 会被 bash 自己吃掉（invalid option）——
+ * 这是现场反复撞的一堵墙，所以这里一次性拼好，复制即跑。
  *
  * `-k`：入口的 TLS 证书通常是自签的（平台惯例，center 的安装脚本同样如此）。
  * 收据的真伪不靠 TLS，而是脚本里的两条硬校验：证书公钥必须匹配本机私钥、SAN 必须对。
  */
-export function linkCommand(path: string): string {
-  return `curl -fsSLk ${window.location.origin}${path} | bash`;
+export function linkCommand(path: string, options: LinkOptions = {}): string {
+  const args: string[] = [];
+  const config = options.configPath?.trim();
+  const restart = options.restartCmd?.trim();
+  if (config) args.push(`--config ${shellQuote(config)}`);
+  if (restart) args.push(`--restart ${shellQuote(restart)}`);
+  const tail = args.length > 0 ? ` -s -- ${args.join(" ")}` : "";
+  return `curl -fsSLk ${window.location.origin}${path} | bash${tail}`;
 }
 
 /** 往页面上复制文本；失败时返回 false（https 之外的 origin 拿不到剪贴板）。 */

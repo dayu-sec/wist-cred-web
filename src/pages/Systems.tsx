@@ -74,7 +74,14 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
 
   async function copy() {
     if (!link) return;
-    setCopied(await copyText(linkCommand(link.path)));
+    setCopied(
+      await copyText(
+        linkCommand(link.path, {
+          configPath: setupPath,
+          restartCmd: setupRestart,
+        }),
+      ),
+    );
   }
 
   /** 保存落点并**重新签发**：脚本是签发时渲染的，改了必须换一张券才生效。 */
@@ -317,23 +324,12 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
             之后发凭证只能从这张表里选。改角色也是这条路 —— 重新生成一次命令，带新的
             <span className="mono">--roles</span> 重跑（当前值会补进命令里，不带就保持原样）。
           </p>
-          <code className="secret">{linkCommand(link.path)}</code>
-          <div className="token-actions">
-            <button type="button" onClick={() => void copy()}>
-              {copied ? "已复制" : "复制"}
-            </button>
-            <span className="muted small">
-              {setupPath.trim()
-                ? `执行后会写入 ${setupPath.trim()}`
-                : "不带 --config：只落材料并打印片段"}
-            </span>
-          </div>
 
           <div className="setup-fields">
             <p className="muted small">
-              接入落点（存在这个系统上）：填了之后<strong>每一次</strong>接入命令都自带，
-              不用为了补参数重新开券。栈部署的服务（center / ingest）请留空 ——
-              它们的配置由 localize 渲染，脚本写进去会被下一次渲染覆盖。
+              接入落点（可选）：填了之后**命令会直接带上**，复制即跑，不用手补参数。
+              栈部署的服务（center / ingest）请留空 —— 它们的配置由 localize 渲染，
+              脚本写进去会被下一次渲染覆盖。
             </p>
             <div className="inline-edit">
               <input
@@ -351,9 +347,26 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
                 disabled={setupSaving}
                 onClick={() => void saveSetup()}
               >
-                {setupSaving ? "保存中…" : "保存并更新命令"}
+                {setupSaving ? "保存中…" : "保存为默认"}
               </button>
             </div>
+          </div>
+
+          <code className="secret">
+            {linkCommand(link.path, {
+              configPath: setupPath,
+              restartCmd: setupRestart,
+            })}
+          </code>
+          <div className="token-actions">
+            <button type="button" onClick={() => void copy()}>
+              {copied ? "已复制" : "复制"}
+            </button>
+            <span className="muted small">
+              {setupPath.trim()
+                ? `执行后会写入 ${setupPath.trim()}`
+                : "不带 --config：只落材料并打印片段（要写配置就在上面填路径）"}
+            </span>
           </div>
         </section>
       )}
