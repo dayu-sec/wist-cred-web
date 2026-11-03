@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.2-alpha] - 2026-11-03
+
+### 新增：品牌图标
+
+- 继承了生态的图标家族（`WistCenter` 蜂巢 / `WarpGateway` 立方体 / `WistIngest` 漏斗）：
+  20×20 圆角徽章 + 白色线稿，渐变从共用的紫罗兰 `#8b5cf6` 出发，色尾走到玫红。
+- `public/favicon.svg` 是一把**钥匙**（圆环 + 杆 + 两道齿）：凭据服务唯一“发出去的东西”就是凭据；
+  轮廓与前三个都不撞，16px 下仍能认出。`index.html` 带 `?v=1`（浏览器单独缓存 favicon）。
+- `src/BrandMark.tsx` + `.brand-mark`：顶栏（34px）与登录卡片（44px）复用同一几何；
+  渐变放在 CSS，避免内联 `<defs>` 的 id 重复。
+
 ## [0.2.1-alpha] - 2026-11-03
 
 ### 变更：跟版 `wist-cred` 的语义化路径
