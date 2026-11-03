@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 
-import { createPeer, mintOnboardingLink, setPeerEndpoint } from "../api";
+import { createPeer, mintOnboardingLink, setPeerEndpoint, setPeerSetup } from "../api";
 import type { CreatePeerInput, OnboardingLink, OnboardingPeer, OnboardingState } from "../api";
 import { copyText, describe, linkCommand } from "../ui";
 
@@ -50,9 +50,18 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
 
+  /** 接入落点（配置文件 / 重启命令）：随认证系统存，签发时烘进脚本。 */
+  const [setupPath, setSetupPath] = useState("");
+  const [setupRestart, setSetupRestart] = useState("");
+  const [setupSaving, setSetupSaving] = useState(false);
+
   async function mint(peer: string) {
     setMinting(peer);
     setCopied(false);
+    // 预填上一次存下的落点：改完保存直接重新签发，不用再想。
+    const record = boarding?.peers.find((item) => item.name === peer);
+    setSetupPath(record?.config_path ?? "");
+    setSetupRestart(record?.restart_cmd ?? "");
     try {
       setLink(await mintOnboardingLink(peer));
       setLocalError(null);
@@ -66,6 +75,26 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
   async function copy() {
     if (!link) return;
     setCopied(await copyText(linkCommand(link.path)));
+  }
+
+  /** 保存落点并**重新签发**：脚本是签发时渲染的，改了必须换一张券才生效。 */
+  async function saveSetup() {
+    if (!link) return;
+    const peer = link.peer;
+    setSetupSaving(true);
+    try {
+      await setPeerSetup(peer, {
+        config_path: setupPath.trim() || null,
+        restart_cmd: setupRestart.trim() || null,
+      });
+      setLocalError(null);
+      onReload();
+      await mint(peer);
+    } catch (err) {
+      setLocalError(describe(err));
+    } finally {
+      setSetupSaving(false);
+    }
   }
 
   async function submit(event: FormEvent) {
@@ -293,7 +322,38 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
             <button type="button" onClick={() => void copy()}>
               {copied ? "已复制" : "复制"}
             </button>
-            <span className="muted small">带 --config 可顺带写入配置</span>
+            <span className="muted small">
+              {setupPath.trim()
+                ? `执行后会写入 ${setupPath.trim()}`
+                : "不带 --config：只落材料并打印片段"}
+            </span>
+          </div>
+
+          <div className="setup-fields">
+            <p className="muted small">
+              接入落点（存在这个系统上）：填了之后<strong>每一次</strong>接入命令都自带，
+              不用为了补参数重新开券。栈部署的服务（center / ingest）请留空 ——
+              它们的配置由 localize 渲染，脚本写进去会被下一次渲染覆盖。
+            </p>
+            <div className="inline-edit">
+              <input
+                value={setupPath}
+                placeholder="配置文件（可选），如 /etc/wist/center/control-center.toml"
+                onChange={(event) => setSetupPath(event.target.value)}
+              />
+              <input
+                value={setupRestart}
+                placeholder="重启命令（可选），如 systemctl restart wist-center"
+                onChange={(event) => setSetupRestart(event.target.value)}
+              />
+              <button
+                type="button"
+                disabled={setupSaving}
+                onClick={() => void saveSetup()}
+              >
+                {setupSaving ? "保存中…" : "保存并更新命令"}
+              </button>
+            </div>
           </div>
         </section>
       )}

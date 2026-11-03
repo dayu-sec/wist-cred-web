@@ -144,6 +144,10 @@ export interface OnboardingPeer {
   endpoint: string | null;
   /** 这个系统自己能验的角色；空 = 还没上报。 */
   roles: string[];
+  /** 接入脚本要不要顺手写配置（`--config`）；null = 只打印片段。 */
+  config_path: string | null;
+  /** 写完配置要让生效的命令（`--restart`）；null = 只提示。 */
+  restart_cmd: string | null;
   /** 心跳探测地址（缺省由 endpoint 推到同源 /healthz）。 */
   probe_url: string | null;
   created_at: number;
@@ -210,4 +214,20 @@ export function setPeerEndpoint(
     `/peers/${encodeURIComponent(peer)}/endpoint`,
     { method: "POST", body: JSON.stringify({ endpoint }) },
   );
+}
+
+/**
+ * 接入落点：接入脚本要不要顺手写配置 / 重启。
+ *
+ * 存在**认证系统**上（不是每条券上）：下次点「接入命令」就自带，
+ * 不用为了补 `--config` 再开一张券。
+ */
+export function setPeerSetup(
+  peer: string,
+  input: { config_path: string | null; restart_cmd: string | null },
+): Promise<OnboardingPeer> {
+  return request<OnboardingPeer>(`/peers/${encodeURIComponent(peer)}/setup`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
