@@ -1,0 +1,23 @@
+<!-- WistCred（凭据服务）：一把钥匙 —— 这一层**发出去的东西**就是凭据。
+     家族规矩与 WistCenter / WarpGateway / WistIngest 同一套：20×20 圆角徽章 + 白色线稿，
+     渐变从共用的紫罗兰 #8b5cf6 出发。
+     分工：中心 = 紫罗兰→紫的三格蜂巢，网关 = 紫罗兰→青的单格立方体，
+     接收 = 紫罗兰→翡翠的漏斗，凭据 = 紫罗兰→玫红的钥匙 —— 轮廓与色尾都不同，
+     四个图标并排 16px 也分得开。 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width="20" height="20" role="img" aria-label="WistCred">
+  <defs>
+    <linearGradient id="cred-badge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8b5cf6" />
+      <stop offset="0.55" stop-color="#d946ef" />
+      <stop offset="1" stop-color="#f43f5e" />
+    </linearGradient>
+  </defs>
+  <rect width="20" height="20" rx="5" fill="url(#cred-badge)" />
+  <!-- 钥匙：圆环（bow）+ 杆 + 两道齿。齿朝右，避免与“锁/挂锁”混淆。 -->
+  <g fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="10" cy="6.2" r="2.9" />
+    <path d="M10 9.1v7.1" />
+    <path d="M10 12.4h3" />
+    <path d="M10 14.9h2.2" />
+  </g>
+</svg>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { getPolicy } from "./api";
 import { setPassword } from "./auth";
+import { BrandMark } from "./BrandMark";
 import { describe } from "./ui";
 
 /**
@@ -47,6 +48,9 @@ export default function Login({ onDone }: { onDone: () => void }) {
   return (
     <div className="login">
       <form className="login-card" onSubmit={(event) => void submit(event)}>
+        <div className="login-brand">
+          <BrandMark size={44} />
+        </div>
         <h1>WistCred</h1>
         <p className="subtitle">输入访问口令，管理程序访问凭证</p>
 

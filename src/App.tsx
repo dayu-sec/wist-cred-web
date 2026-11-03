@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ApiError, listCredentials, listOnboardingPeers, getPolicy } from "./api";
 import type { Credential, IssuePolicy, OnboardingState } from "./api";
 import { AUTH_CHANGED_EVENT, clearPassword, getPassword } from "./auth";
+import { BrandMark } from "./BrandMark";
 import Credentials from "./pages/Credentials";
 import Systems from "./pages/Systems";
 import Login from "./Login";
@@ -143,9 +144,12 @@ export default function App() {
   return (
     <div className="page">
       <header className="topbar">
-        <div>
-          <h1>WistCred</h1>
-          <p className="subtitle">认证系统接入 · 程序访问凭证签发与撤销</p>
+        <div className="brand">
+          <BrandMark size={34} />
+          <div>
+            <h1>WistCred</h1>
+            <p className="subtitle">认证系统接入 · 程序访问凭证签发与撤销</p>
+          </div>
         </div>
         <div className="topbar-right">
           <span className="version">v{VERSION}</span>

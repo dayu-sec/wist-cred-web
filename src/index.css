@@ -46,6 +46,25 @@ body {
   letter-spacing: 0.5px;
 }
 
+/* 品牌标识：徽章渐变与 /favicon.svg 同色（紫罗兰 → 洋红 → 玫红）。
+   几何（钥匙）在 `BrandMark.tsx`，与其它几个 web 的 favicon 同一套家族。 */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-mark {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  background: linear-gradient(140deg, #8b5cf6, #d946ef 55%, #f43f5e);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    0 6px 16px rgba(139, 92, 246, 0.32);
+}
+
 .subtitle {
   margin: 6px 0 0;
   color: var(--muted);
@@ -638,6 +657,13 @@ tr:last-child td {
   margin: 0;
   font-size: 22px;
   letter-spacing: 0.5px;
+  text-align: center;
+}
+
+.login-brand {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 6px;
 }
 
 .login-label {
