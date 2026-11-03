@@ -184,11 +184,11 @@ export interface CreatePeerInput {
 }
 
 export function listOnboardingPeers(): Promise<OnboardingState> {
-  return request<OnboardingState>("/onboarding/peers");
+  return request<OnboardingState>("/peers");
 }
 
 export function createPeer(input: CreatePeerInput): Promise<OnboardingPeer> {
-  return request<OnboardingPeer>("/onboarding/peers", {
+  return request<OnboardingPeer>("/peers", {
     method: "POST",
     body: JSON.stringify(input),
   });
@@ -196,7 +196,7 @@ export function createPeer(input: CreatePeerInput): Promise<OnboardingPeer> {
 
 export function mintOnboardingLink(peer: string): Promise<OnboardingLink> {
   return request<OnboardingLink>(
-    `/onboarding/peers/${encodeURIComponent(peer)}/script`,
+    `/peers/${encodeURIComponent(peer)}/enrollment-tickets`,
     { method: "POST" },
   );
 }
@@ -207,7 +207,7 @@ export function setPeerEndpoint(
   endpoint: string | null,
 ): Promise<OnboardingPeer> {
   return request<OnboardingPeer>(
-    `/onboarding/peers/${encodeURIComponent(peer)}/endpoint`,
+    `/peers/${encodeURIComponent(peer)}/endpoint`,
     { method: "POST", body: JSON.stringify({ endpoint }) },
   );
 }

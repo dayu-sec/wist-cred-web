@@ -23,10 +23,11 @@ export default defineConfig({
         changeOrigin: true,
         headers: { "x-wist-operator": operator },
       },
-      // 一次性接入脚本。dev 下必须一起代理，否则页面生成的 curl 地址在 5174 上会 404。
+      // 一次性接入券（join.sh / certificate）。dev 下必须一起代理，
+      // 否则页面生成的 curl 地址在 5174 上会 404。
       // （发布态由入口 nginx 单独一条 location 接手；那条面本来就不需要口令 ——
       //  拿它的是机器，靠 URL 里的一次性券授权。）
-      "/onboarding": {
+      "/enroll": {
         target,
         changeOrigin: true,
       },
