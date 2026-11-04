@@ -19,6 +19,25 @@ interface FormState {
 
 const EMPTY_FORM: FormState = { name: "" };
 
+/**
+ * 材料目录的常见落点：已经在用的（别的认证系统存过的）排前面，再补几个静态项。
+ *
+ * 为什不是纯输入框：栈里写错一个字符，脚本会落在消费方不看的地方，而券已经烧了。
+ * 能选就不让人打字。
+ */
+function materialDirOptions(peer: string, used: string[]): string[] {
+  const common = [
+    `./identity/${peer}/cred`,
+    "./configs/wist-cred",
+    `/etc/wist/${peer}`,
+    `./wist-cred/${peer}`,
+  ];
+  return [...new Set([...used.filter(Boolean), ...common])];
+}
+
+/** 角色组合的常见取法（与 center / ingest 的词汇表对齐）。 */
+const ROLE_PRESETS = ["admin,read", "read", "investigation:run", "read,investigation:run"];
+
 function healthOf(peer: OnboardingPeer): { label: string; className: string } {
   // 没有收数地址就不会被探测，说「未探测」会误导。
   if (!peer.endpoint) return { label: "不探测", className: "state expired" };
@@ -50,8 +69,9 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
 
-  /** 接入落点（材料目录 / 重启命令）：随认证系统存，签发时烘进脚本。 */
+  /** 接入落点（材料目录 / 角色 / 重启命令）：随认证系统存，签发时烘进脚本。 */
   const [setupDir, setSetupDir] = useState("");
+  const [setupRoles, setSetupRoles] = useState("");
   const [setupRestart, setSetupRestart] = useState("");
   const [setupSaving, setSetupSaving] = useState(false);
 
@@ -61,6 +81,9 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
     // 预填上一次存下的落点：改完保存直接重新签发，不用再想。
     const record = boarding?.peers.find((item) => item.name === peer);
     setSetupDir(record?.install_dir ?? "");
+    // 角色不是本页存的，而是对方登记时上报的：只在人没填过时用已登记的预填，
+    // 否则“保存 → 重新签发”会把人刚选的组合清掉。
+    setSetupRoles((previous) => previous || (record?.roles.join(",") ?? ""));
     setSetupRestart(record?.restart_cmd ?? "");
     try {
       setLink(await mintOnboardingLink(peer));
@@ -78,6 +101,7 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
       await copyText(
         linkCommand(link.path, {
           dir: setupDir,
+          roles: setupRoles.split(","),
           restartCmd: setupRestart,
         }),
       ),
@@ -104,6 +128,13 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
       setSetupSaving(false);
     }
   }
+
+  const dirOptions = link
+    ? materialDirOptions(
+        link.peer,
+        (boarding?.peers ?? []).map((peer) => peer.install_dir ?? ""),
+      )
+    : [];
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -332,12 +363,46 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
               [identity] 与 [verify]），程序启动时加一行
               <span className="mono">--credentials &lt;路径&gt;</span> 指过来就行。
               它必须与材料同目录（相对路径按文件目录解），所以这里不提供改路径。
+              <strong>部署栈里必须填材料目录</strong>（默认值会被护栏拦下）。
             </p>
             <div className="inline-edit">
+              <select
+                value=""
+                onChange={(event) => {
+                  if (event.target.value) setSetupDir(event.target.value);
+                }}
+              >
+                <option value="">常用位置…</option>
+                {dirOptions.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
               <input
                 value={setupDir}
                 placeholder="材料目录（部署栈里必填），如 ./identity/center/cred"
                 onChange={(event) => setSetupDir(event.target.value)}
+              />
+            </div>
+            <div className="inline-edit">
+              <select
+                value=""
+                onChange={(event) => {
+                  if (event.target.value) setSetupRoles(event.target.value);
+                }}
+              >
+                <option value="">常用角色…</option>
+                {ROLE_PRESETS.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={setupRoles}
+                placeholder="角色（逗号分隔），留空 = 沿用已登记的"
+                onChange={(event) => setSetupRoles(event.target.value)}
               />
             </div>
             <div className="inline-edit">
@@ -357,7 +422,11 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
           </div>
 
           <code className="secret">
-            {linkCommand(link.path, { dir: setupDir, restartCmd: setupRestart })}
+            {linkCommand(link.path, {
+              dir: setupDir,
+              roles: setupRoles.split(","),
+              restartCmd: setupRestart,
+            })}
           </code>
           <div className="token-actions">
             <button type="button" onClick={() => void copy()}>
