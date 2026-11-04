@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.7-alpha] - 2026-11-04
+
+### 新增：「接入命令」面板加「材料目录」
+
+在部署栈里，脚本的默认材料目录（`./wist-cred/<peer>`）**一定会被护栏拦下**，
+而正确落点只有操作者知道（如 `wist-center-stack` 是 `./identity/center/cred`）。
+以前只能让人在报错后自己把 `--dir` 拼回命令里 —— 现在落点作为认证系统的属性存下来：
+
+- 面板新增「材料目录」输入框，随系统保存（`POST /peers/{name}/setup` 的 `install_dir`）；
+- 生成的命令自带 `--dir '…'`，配上 cred 0.4.15 的内嵌默认值，
+  **裸跑 `curl … | bash` 也能落对位置**。
+
+```
+curl -fsSLk <url> | bash -s -- --dir './identity/center/cred'
+```
+
 ## [0.2.6-alpha] - 2026-11-03
 
 ### 变更：去掉「cred.toml 路径」输入框

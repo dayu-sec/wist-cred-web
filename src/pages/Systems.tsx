@@ -50,15 +50,17 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
 
-  /** 接入落点（配置文件 / 重启命令）：随认证系统存，签发时烘进脚本。 */
+  /** 接入落点（材料目录 / 重启命令）：随认证系统存，签发时烘进脚本。 */
+  const [setupDir, setSetupDir] = useState("");
   const [setupRestart, setSetupRestart] = useState("");
   const [setupSaving, setSetupSaving] = useState(false);
 
   async function mint(peer: string) {
     setMinting(peer);
     setCopied(false);
-    // 预填上一次存下的重启命令：改完保存直接重新签发，不用再想。
+    // 预填上一次存下的落点：改完保存直接重新签发，不用再想。
     const record = boarding?.peers.find((item) => item.name === peer);
+    setSetupDir(record?.install_dir ?? "");
     setSetupRestart(record?.restart_cmd ?? "");
     try {
       setLink(await mintOnboardingLink(peer));
@@ -75,6 +77,7 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
     setCopied(
       await copyText(
         linkCommand(link.path, {
+          dir: setupDir,
           restartCmd: setupRestart,
         }),
       ),
@@ -88,6 +91,7 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
     setSetupSaving(true);
     try {
       await setPeerSetup(peer, {
+        install_dir: setupDir.trim() || null,
         config_path: null,
         restart_cmd: setupRestart.trim() || null,
       });
@@ -331,6 +335,13 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
             </p>
             <div className="inline-edit">
               <input
+                value={setupDir}
+                placeholder="材料目录（部署栈里必填），如 ./identity/center/cred"
+                onChange={(event) => setSetupDir(event.target.value)}
+              />
+            </div>
+            <div className="inline-edit">
+              <input
                 value={setupRestart}
                 placeholder="重启命令（可选），如 gops run stop && gops run start"
                 onChange={(event) => setSetupRestart(event.target.value)}
@@ -346,14 +357,14 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
           </div>
 
           <code className="secret">
-            {linkCommand(link.path, { restartCmd: setupRestart })}
+            {linkCommand(link.path, { dir: setupDir, restartCmd: setupRestart })}
           </code>
           <div className="token-actions">
             <button type="button" onClick={() => void copy()}>
               {copied ? "已复制" : "复制"}
             </button>
             <span className="muted small">
-              落点与材料同目录；cred.toml 会被整份重写
+              材料目录与 cred.toml 同目录；cred.toml 会被整份重写
             </span>
           </div>
         </section>

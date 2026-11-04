@@ -144,6 +144,8 @@ export interface OnboardingPeer {
   endpoint: string | null;
   /** 这个系统自己能验的角色；空 = 还没上报。 */
   roles: string[];
+  /** 材料目录（接入命令里的 `--dir`）；null = 由脚本按场景取默认。 */
+  install_dir: string | null;
   /** 接入脚本要不要顺手写配置（`--config`）；null = 只打印片段。 */
   config_path: string | null;
   /** 写完配置要让生效的命令（`--restart`）；null = 只提示。 */
@@ -224,7 +226,11 @@ export function setPeerEndpoint(
  */
 export function setPeerSetup(
   peer: string,
-  input: { config_path: string | null; restart_cmd: string | null },
+  input: {
+    install_dir: string | null;
+    config_path: string | null;
+    restart_cmd: string | null;
+  },
 ): Promise<OnboardingPeer> {
   return request<OnboardingPeer>(`/peers/${encodeURIComponent(peer)}/setup`, {
     method: "POST",

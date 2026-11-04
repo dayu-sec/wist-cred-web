@@ -40,6 +40,8 @@ function shellQuote(value: string): string {
 }
 
 export interface LinkOptions {
+  /** 材料目录；填了命令就带 `--dir`（部署栈里必须带，默认值会被护栏拦下）。 */
+  dir?: string;
   /** X 上的配置文件；填了命令就带 `--config`。 */
   configPath?: string;
   /** 写完配置后的重启命令；填了命令就带 `--restart`。 */
@@ -57,8 +59,10 @@ export interface LinkOptions {
  */
 export function linkCommand(path: string, options: LinkOptions = {}): string {
   const args: string[] = [];
+  const dir = options.dir?.trim();
   const config = options.configPath?.trim();
   const restart = options.restartCmd?.trim();
+  if (dir) args.push(`--dir ${shellQuote(dir)}`);
   if (config) args.push(`--config ${shellQuote(config)}`);
   if (restart) args.push(`--restart ${shellQuote(restart)}`);
   const tail = args.length > 0 ? ` -s -- ${args.join(" ")}` : "";
