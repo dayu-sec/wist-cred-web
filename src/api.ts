@@ -179,8 +179,13 @@ export interface OnboardingLink {
   peer: string;
   /** null = 还没登记，主机名未知。 */
   host: string | null;
-  /** 一次性接入券（`wot_…`）：**自注册页（`/__init`）要的就是它**。 */
-  ticket: string;
+  /**
+   * 一次性接入券（`wot_…`）：自注册页（`/__init`）要的就是它。
+   *
+   * cred 0.7 起直接给；**旧版没有这个字段**，此时用 `ticketFromPath(path)` 从
+   * `/enroll/{券}/join.sh` 里取 —— 这样界面不必等 cred 发版。
+   */
+  ticket?: string;
   path: string;
   expires_in: number;
 }

@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 
 import { createPeer, mintOnboardingLink, setPeerEndpoint, setPeerSetup } from "../api";
 import type { CreatePeerInput, OnboardingLink, OnboardingPeer, OnboardingState } from "../api";
-import { copyText, describe, linkCommand } from "../ui";
+import { copyText, describe, linkCommand, ticketFromPath } from "../ui";
 
 interface Props {
   boarding: OnboardingState | null;
@@ -103,7 +103,7 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
   /** 自注册只要这串券 —— 这是新流程的主路径。 */
   async function copyTicket() {
     if (!link) return;
-    setCopied((await copyText(link.ticket)) ? "ticket" : "");
+    setCopied((await copyText(linkTicket)) ? "ticket" : "");
   }
 
   async function copy() {
@@ -163,6 +163,9 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
 
   /** 要签命令的这个系统**没有收数地址**（被撤销了）：接入会被拒，要提前说。 */
   const linkNeedsAddress = Boolean(link) && linkPeer !== null && !linkPeer.endpoint;
+
+  /** 券：cred 0.7+ 直接给；旧版从 `/enroll/{券}/join.sh` 里取（见 `ticketFromPath`）。 */
+  const linkTicket = link ? (link.ticket ?? ticketFromPath(link.path)) : "";
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -410,7 +413,7 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
               之后收数监听自己起来。
             </p>
             <div className="token-actions">
-              <code className="secret">{link.ticket}</code>
+              <code className="secret">{linkTicket}</code>
               <button type="button" onClick={() => void copyTicket()}>
                 {copied === "ticket" ? "已复制" : "复制券"}
               </button>

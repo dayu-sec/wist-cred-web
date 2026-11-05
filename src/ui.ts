@@ -73,6 +73,18 @@ export function linkCommand(path: string, options: LinkOptions = {}): string {
   return `curl -fsSLk ${window.location.origin}${path} | bash${tail}`;
 }
 
+/**
+ * 从 `/enroll/{券}/join.sh` 里取出券。
+ *
+ * 为什么要有它：接入券本来就是这条路径里的那一段（取脚本的机器也只能从这里拿到它）。
+ * 接口从 cred 0.7 起会直接回 `ticket`，但**旧版没有** —— 为了让界面不必跟着 cred 一起发版，
+ * 这里保留一次提取；两边都能用，就不用为一个字段多切一趟镜像。
+ */
+export function ticketFromPath(path: string): string {
+  const match = /^\/enroll\/([^/]+)\//.exec(path);
+  return match ? match[1] : "";
+}
+
 /** 往页面上复制文本；失败时返回 false（https 之外的 origin 拿不到剪贴板）。 */
 export async function copyText(text: string): Promise<boolean> {
   try {
