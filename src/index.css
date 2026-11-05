@@ -541,6 +541,25 @@ button.danger:hover:not(:disabled) {
   margin-top: 10px;
 }
 
+/* 接入券区块：新流程的主路径（传统 join.sh 降级进 <details>）。 */
+.ticket-box {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2, rgba(255, 255, 255, 0.02));
+}
+
+.ticket-box > summary {
+  cursor: pointer;
+  user-select: none;
+}
+
+.ticket-box .secret {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 table {
   width: 100%;
   margin-top: 12px;

@@ -63,7 +63,7 @@ function healthOf(peer: OnboardingPeer): { label: string; className: string } {
 export default function Systems({ boarding, error, onReload, onGoCredentials }: Props) {
   const [link, setLink] = useState<OnboardingLink | null>(null);
   const [minting, setMinting] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"" | "ticket" | "command">("");
   const [localError, setLocalError] = useState<string | null>(null);
 
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -82,7 +82,7 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
 
   async function mint(peer: string) {
     setMinting(peer);
-    setCopied(false);
+    setCopied("");
     // 预填上一次存下的落点：改完保存直接重新签发，不用再想。
     const record = boarding?.peers.find((item) => item.name === peer);
     setSetupDir(record?.install_dir ?? "");
@@ -100,17 +100,22 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
     }
   }
 
+  /** 自注册只要这串券 —— 这是新流程的主路径。 */
+  async function copyTicket() {
+    if (!link) return;
+    setCopied((await copyText(link.ticket)) ? "ticket" : "");
+  }
+
   async function copy() {
     if (!link) return;
-    setCopied(
-      await copyText(
-        linkCommand(link.path, {
-          dir: setupDir,
-          roles: setupRoles.split(","),
-          restartCmd: setupRestart,
-        }),
-      ),
+    const ok = await copyText(
+      linkCommand(link.path, {
+        dir: setupDir,
+        roles: setupRoles.split(","),
+        restartCmd: setupRestart,
+      }),
     );
+    setCopied(ok ? "command" : "");
   }
 
   /** 保存落点并**重新签发**：脚本是签发时渲染的，改了必须换一张券才生效。 */
@@ -378,9 +383,9 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
         <section className="panel">
           <div className="panel-head">
             <div>
-              <h2>接入命令 · {link.peer}</h2>
+              <h2>接入 · {link.peer}</h2>
               <p className="muted small">
-                在 {link.host ?? "对方主机"} 上执行下面这一行。
+                两种接法，二选一：<strong>自注册</strong>（推荐，只有一串券）或传统接入命令。
               </p>
             </div>
             <button type="button" className="ghost" onClick={() => setLink(null)}>
@@ -389,19 +394,41 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
           </div>
           <p className="warn">
             一次性券，{Math.round(link.expires_in / 60)} 分钟内有效，<strong>登记时作废</strong>。
-            命令里没有任何私钥：对方在本机生成密钥，只交 CSR，证书按 CSR 签出。
+            两种接法都不传私钥：对方在本机生成密钥，只交 CSR，证书按 CSR 签出。
           </p>
           {linkNeedsAddress && (
             <p className="warn">
-              这个系统<strong>没有收数地址</strong>（被撤销了）：命令照样能跑，但登记会被拒
+              这个系统<strong>没有收数地址</strong>（被撤销了）：登记会被拒
               —— 推不了、探不了的系统不允许接入。先在上面列表里把地址补上再过。
             </p>
           )}
-          <p className="muted small">
-            在对方机器上要带上 <span className="mono">--roles a,b,c</span> 登记它能验的角色；
-            之后发凭证只能从这张表里选。改角色也是这条路 —— 重新生成一次命令，带新的
-            <span className="mono">--roles</span> 重跑（当前值会补进命令里，不带就保持原样）。
-          </p>
+
+          <div className="ticket-box">
+            <p className="muted small">
+              <strong>① 自注册（推荐）</strong>：在对方机器的初始化页（
+              <span className="mono">/__init</span>）里填这串券 —— 它自己生成密钥、自己登记，
+              之后收数监听自己起来。
+            </p>
+            <div className="token-actions">
+              <code className="secret">{link.ticket}</code>
+              <button type="button" onClick={() => void copyTicket()}>
+                {copied === "ticket" ? "已复制" : "复制券"}
+              </button>
+            </div>
+            <p className="muted small">
+              这串东西就是接入授权本身（等同于一次性口令）：发完就别留在聊天记录里。
+            </p>
+          </div>
+
+          <details className="ticket-box">
+            <summary className="muted small">
+              ② 传统方式：跑接入命令（自己写 cred.toml + 摆材料）
+            </summary>
+            <p className="muted small">
+              在对方机器上要带上 <span className="mono">--roles a,b,c</span> 登记它能验的角色；
+              之后发凭证只能从这张表里选。改角色也是这条路 —— 重新生成一次命令，带新的
+              <span className="mono">--roles</span> 重跑（当前值会补进命令里，不带就保持原样）。
+            </p>
 
           <div className="setup-fields">
             <p className="muted small">
@@ -476,12 +503,13 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
           </code>
           <div className="token-actions">
             <button type="button" onClick={() => void copy()}>
-              {copied ? "已复制" : "复制"}
+              {copied === "command" ? "已复制" : "复制"}
             </button>
             <span className="muted small">
               材料目录与 cred.toml 同目录；cred.toml 会被整份重写
             </span>
           </div>
+          </details>
         </section>
       )}
     </>

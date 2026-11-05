@@ -179,6 +179,8 @@ export interface OnboardingLink {
   peer: string;
   /** null = 还没登记，主机名未知。 */
   host: string | null;
+  /** 一次性接入券（`wot_…`）：**自注册页（`/__init`）要的就是它**。 */
+  ticket: string;
   path: string;
   expires_in: number;
 }
