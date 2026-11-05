@@ -39,8 +39,11 @@ function materialDirOptions(peer: string, used: string[]): string[] {
 const ROLE_PRESETS = ["admin,read", "read", "investigation:run", "read,investigation:run"];
 
 function healthOf(peer: OnboardingPeer): { label: string; className: string } {
-  // 没有收数地址就不会被探测，说「未探测」会误导。
-  if (!peer.endpoint) return { label: "不探测", className: "state expired" };
+  // 没有收数地址就不是“未探测”，而是一个**不会自愈的错误**：探针会直接跳过它，
+  // 凭据签发了也送不达。所以用红色说出来，不能和“刚建好、等第一次心跳”混在一起。
+  if (peer.health === "no_endpoint" || !peer.endpoint) {
+    return { label: "缺收数地址", className: "state revoked" };
+  }
   if (peer.health === "up") return { label: "可联通", className: "state active" };
   if (peer.health === "down") return { label: "不通", className: "state revoked" };
   return { label: "未探测", className: "state expired" };
@@ -135,6 +138,12 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
         (boarding?.peers ?? []).map((peer) => peer.install_dir ?? ""),
       )
     : [];
+
+  /** 正在签发命令的那个系统：没有收数地址的命令拿到对方机器上会被拒跑，要提前说。 */
+  const linkPeer = link
+    ? (boarding?.peers.find((peer) => peer.name === link.peer) ?? null)
+    : null;
+  const linkMissingEndpoint = Boolean(linkPeer && !linkPeer.endpoint);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -300,7 +309,7 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
                         {peer.endpoint ? (
                           <span className="mono">{peer.endpoint}</span>
                         ) : (
-                          <span className="muted">手工分发 — 点击设置地址</span>
+                          <span className="muted">缺收数地址 — 点击补上（不补就永远收不到推送）</span>
                         )}
                       </button>
                     )}
@@ -351,6 +360,13 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
             一次性券，{Math.round(link.expires_in / 60)} 分钟内有效，<strong>登记时作废</strong>。
             命令里没有任何私钥：对方在本机生成密钥，只交 CSR，证书按 CSR 签出。
           </p>
+          {linkMissingEndpoint && (
+            <p className="warn">
+              这个系统还没有<strong>收数地址</strong>：上面那条命令会在对方机器上直接拒跑
+              （不给地址就会“登记成功、却永远收不到推送”）。先在上面补地址，
+              或者让对方加 <span className="mono">--manual</span> 显式只做人工分发。
+            </p>
+          )}
           <p className="muted small">
             在对方机器上要带上 <span className="mono">--roles a,b,c</span> 登记它能验的角色；
             之后发凭证只能从这张表里选。改角色也是这条路 —— 重新生成一次命令，带新的

@@ -154,7 +154,11 @@ export interface OnboardingPeer {
   probe_url: string | null;
   created_at: number;
   created_by: string;
-  health: "up" | "down" | "unknown";
+  /**
+   * `no_endpoint` = 这个系统根本没有收数地址（不是“还没探过”）：
+   * cred 会直接跳过它，永远不会探活、也永远不会推送。不会自愈，要人补地址。
+   */
+  health: "up" | "down" | "unknown" | "no_endpoint";
   last_seen_at: number | null;
   latency_ms: number | null;
   last_error: string | null;
