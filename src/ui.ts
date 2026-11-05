@@ -10,7 +10,7 @@ export function describe(error: unknown): string {
       return `受众未在服务端登记（${error.message}）：先到「认证系统」页接入它。`;
     }
     if (error.code === "roles_not_registered") {
-      return `这个认证系统还没登记能验的角色（${error.message}）：到「认证系统」页重新生成接入命令，在它本机带 --roles 跑一次。`;
+      return `这个认证系统还没登记能验的角色（${error.message}）：到「认证系统」页生成一张接入令牌，在对方机器上带 --roles 重新登记一次。`;
     }
     if (error.code === "no_delivery_target") {
       return `这个认证系统没有收数地址（${error.message}）：到「认证系统」页点地址填一个。`;
@@ -32,45 +32,6 @@ export function humanDuration(seconds: number): string {
   if (Number.isInteger(hours) && hours >= 1) return `${hours} 小时`;
   const minutes = Math.round(seconds / 60);
   return `${minutes} 分钟`;
-}
-
-/** 单引号字面量：路径/命令里可能有空格与引号，拼进 shell 必须转义。 */
-function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
-}
-
-export interface LinkOptions {
-  /** 材料目录；填了命令就带 `--dir`（部署栈里必须带，默认值会被护栏拦下）。 */
-  dir?: string;
-  /** 对方能验的角色；填了命令就带 `--roles`（不带 = 沿用已登记的）。 */
-  roles?: string[];
-  /** X 上的配置文件；填了命令就带 `--config`。 */
-  configPath?: string;
-  /** 写完配置后的重启命令；填了命令就带 `--restart`。 */
-  restartCmd?: string;
-}
-
-/**
- * 接入命令：**参数直接展开在命令里**（不再让人手补 `--config`）。
- *
- * 管道给 bash 时必须 `-s --`，否则 `--config` 会被 bash 自己吃掉（invalid option）——
- * 这是现场反复撞的一堵墙，所以这里一次性拼好，复制即跑。
- *
- * `-k`：入口的 TLS 证书通常是自签的（平台惯例，center 的安装脚本同样如此）。
- * 收据的真伪不靠 TLS，而是脚本里的两条硬校验：证书公钥必须匹配本机私钥、SAN 必须对。
- */
-export function linkCommand(path: string, options: LinkOptions = {}): string {
-  const args: string[] = [];
-  const dir = options.dir?.trim();
-  const roles = (options.roles ?? []).map((role) => role.trim()).filter(Boolean);
-  const config = options.configPath?.trim();
-  const restart = options.restartCmd?.trim();
-  if (dir) args.push(`--dir ${shellQuote(dir)}`);
-  if (roles.length > 0) args.push(`--roles ${shellQuote(roles.join(","))}`);
-  if (config) args.push(`--config ${shellQuote(config)}`);
-  if (restart) args.push(`--restart ${shellQuote(restart)}`);
-  const tail = args.length > 0 ? ` -s -- ${args.join(" ")}` : "";
-  return `curl -fsSLk ${window.location.origin}${path} | bash${tail}`;
 }
 
 /**

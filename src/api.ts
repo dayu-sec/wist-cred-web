@@ -51,6 +51,33 @@ export function getPolicy(): Promise<IssuePolicy> {
   return request<IssuePolicy>("/policy");
 }
 
+/**
+ * 凭据服务与部署栈的版本（`GET /api/v1/version`，**公开**、无需口令）。
+ *
+ * 页面自己那一版来自构建期注入的 `VITE_APP_VERSION`；另外两个只有服务端知道：
+ * `version` 是 `wist-cred` 二进制，`stack_version` 是这套部署（`wist-cred-stack` 的 version.txt）。
+ * 旧 cred 没有这条路由 / 不返回 `stack_version` 时都按「不知道」处理（页面显示 `—`），
+ * 不编值 —— 一个假的版本号会让运维照着错版本排障。
+ */
+export interface ServiceVersion {
+  name: string;
+  version: string;
+  stackVersion: string | null;
+}
+
+export async function getServiceVersion(): Promise<ServiceVersion> {
+  const body = await request<{
+    name?: string;
+    version?: string;
+    stack_version?: string | null;
+  }>("/version");
+  return {
+    name: body.name ?? "wist-cred",
+    version: body.version ?? "",
+    stackVersion: body.stack_version ?? null,
+  };
+}
+
 export class ApiError extends Error {
   readonly code: string;
   readonly status: number;
@@ -192,8 +219,13 @@ export interface OnboardingLink {
 
 export interface CreatePeerInput {
   name: string;
-  /** **必填**的收数地址（部署登记的事实）：没有它 cred 推不了也探不了。 */
-  endpoint: string;
+  /**
+   * 可选的收数地址（`https://…`）。
+   *
+   * 页面**不在新建时问**（后端一直允许缺省）：自注册（cred-peer 初始化）会带着它自己的
+   * 地址进来；手工接入的系统建完后在列表里补。缺省时 `health` 会立刻是 `no_endpoint`。
+   */
+  endpoint?: string;
   /** 可选：证书 SAN；不给就从地址推。 */
   host?: string;
   healthz?: string;
@@ -230,22 +262,3 @@ export function setPeerEndpoint(
   );
 }
 
-/**
- * 接入落点：接入脚本要不要顺手写配置 / 重启。
- *
- * 存在**认证系统**上（不是每条券上）：下次点「接入命令」就自带，
- * 不用为了补 `--config` 再开一张券。
- */
-export function setPeerSetup(
-  peer: string,
-  input: {
-    install_dir: string | null;
-    config_path: string | null;
-    restart_cmd: string | null;
-  },
-): Promise<OnboardingPeer> {
-  return request<OnboardingPeer>(`/peers/${encodeURIComponent(peer)}/setup`, {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
-}

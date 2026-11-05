@@ -1,9 +1,9 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 
-import { createPeer, mintOnboardingLink, setPeerEndpoint, setPeerSetup } from "../api";
-import type { CreatePeerInput, OnboardingLink, OnboardingPeer, OnboardingState } from "../api";
-import { copyText, describe, linkCommand, ticketFromPath } from "../ui";
+import { createPeer, mintOnboardingLink, setPeerEndpoint } from "../api";
+import type { OnboardingLink, OnboardingPeer, OnboardingState } from "../api";
+import { copyText, describe, ticketFromPath } from "../ui";
 
 interface Props {
   boarding: OnboardingState | null;
@@ -15,30 +15,9 @@ interface Props {
 
 interface FormState {
   name: string;
-  /** 收数地址：建系统时必填，之后可不改。 */
-  endpoint: string;
 }
 
-const EMPTY_FORM: FormState = { name: "", endpoint: "" };
-
-/**
- * 材料目录的常见落点：已经在用的（别的认证系统存过的）排前面，再补几个静态项。
- *
- * 为什不是纯输入框：栈里写错一个字符，脚本会落在消费方不看的地方，而券已经烧了。
- * 能选就不让人打字。
- */
-function materialDirOptions(peer: string, used: string[]): string[] {
-  const common = [
-    `./identity/${peer}/cred`,
-    "./configs/wist-cred",
-    `/etc/wist/${peer}`,
-    `./wist-cred/${peer}`,
-  ];
-  return [...new Set([...used.filter(Boolean), ...common])];
-}
-
-/** 角色组合的常见取法（与 center / ingest 的词汇表对齐）。 */
-const ROLE_PRESETS = ["admin,read", "read", "investigation:run", "read,investigation:run"];
+const EMPTY_FORM: FormState = { name: "" };
 
 function healthOf(peer: OnboardingPeer): { label: string; className: string } {
   // 没有收数地址就不是“未探测”，而是一个**不会自愈的错误**：探针会直接跳过它，
@@ -63,7 +42,7 @@ function healthOf(peer: OnboardingPeer): { label: string; className: string } {
 export default function Systems({ boarding, error, onReload, onGoCredentials }: Props) {
   const [link, setLink] = useState<OnboardingLink | null>(null);
   const [minting, setMinting] = useState<string | null>(null);
-  const [copied, setCopied] = useState<"" | "ticket" | "command">("");
+  const [copied, setCopied] = useState<"" | "ticket">("");
   const [localError, setLocalError] = useState<string | null>(null);
 
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -74,22 +53,9 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
 
-  /** 接入落点（材料目录 / 角色 / 重启命令）：随认证系统存，签发时烘进脚本。 */
-  const [setupDir, setSetupDir] = useState("");
-  const [setupRoles, setSetupRoles] = useState("");
-  const [setupRestart, setSetupRestart] = useState("");
-  const [setupSaving, setSetupSaving] = useState(false);
-
   async function mint(peer: string) {
     setMinting(peer);
     setCopied("");
-    // 预填上一次存下的落点：改完保存直接重新签发，不用再想。
-    const record = boarding?.peers.find((item) => item.name === peer);
-    setSetupDir(record?.install_dir ?? "");
-    // 角色不是本页存的，而是对方登记时上报的：只在人没填过时用已登记的预填，
-    // 否则“保存 → 重新签发”会把人刚选的组合清掉。
-    setSetupRoles((previous) => previous || (record?.roles.join(",") ?? ""));
-    setSetupRestart(record?.restart_cmd ?? "");
     try {
       setLink(await mintOnboardingLink(peer));
       setLocalError(null);
@@ -106,56 +72,6 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
     setCopied((await copyText(linkTicket)) ? "ticket" : "");
   }
 
-  async function copy() {
-    if (!link) return;
-    const ok = await copyText(
-      linkCommand(link.path, {
-        dir: setupDir,
-        roles: setupRoles.split(","),
-        restartCmd: setupRestart,
-      }),
-    );
-    setCopied(ok ? "command" : "");
-  }
-
-  /** 保存落点并**重新签发**：脚本是签发时渲染的，改了必须换一张券才生效。 */
-  async function saveSetup() {
-    if (!link) return;
-    const peer = link.peer;
-    const saved = {
-      dir: setupDir,
-      roles: setupRoles,
-      restart: setupRestart,
-    };
-    setSetupSaving(true);
-    try {
-      await setPeerSetup(peer, {
-        install_dir: saved.dir.trim() || null,
-        config_path: null,
-        restart_cmd: saved.restart.trim() || null,
-      });
-      setLocalError(null);
-      onReload();
-      await mint(peer);
-      // 重新签发会拿列表里的记录预填，而列表刷新是异步的：把刚保存的值写回去，
-      // 否则人看到的是自己刚填的值被“弹回”旧值。
-      setSetupDir(saved.dir);
-      setSetupRoles(saved.roles);
-      setSetupRestart(saved.restart);
-    } catch (err) {
-      setLocalError(describe(err));
-    } finally {
-      setSetupSaving(false);
-    }
-  }
-
-  const dirOptions = link
-    ? materialDirOptions(
-        link.peer,
-        (boarding?.peers ?? []).map((peer) => peer.install_dir ?? ""),
-      )
-    : [];
-
   /** 已签发的这个系统在列表里的那条记录。 */
   const linkPeer = link
     ? (boarding?.peers.find((peer) => peer.name === link.peer) ?? null)
@@ -171,16 +87,14 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
     event.preventDefault();
     setSubmitting(true);
     try {
-      const input: CreatePeerInput = {
-        name: form.name.trim(),
-        endpoint: form.endpoint.trim(),
-      };
-
-      const created = await createPeer(input);
+      // 只发名称：收数地址不再在新建时问（后端一直允许不填）。
+      // 自注册（cred-peer 初始化）会带着它自己的地址进来；手工接入的系统建完后
+      // 在「已接入」列表里点那一行补地址即可（改完下一轮心跳生效）。
+      const created = await createPeer({ name: form.name.trim() });
       setForm(EMPTY_FORM);
       setLocalError(null);
       onReload();
-      // 建完直接给接入命令，省一次点击。
+      // 建完直接给接入令牌（券），省一次点击。
       await mint(created.name);
     } catch (err) {
       setLocalError(describe(err));
@@ -219,8 +133,8 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
           <div>
             <h2>新建认证系统</h2>
             <p className="muted small">
-              地址是**真实的收数地址**：cred 往这里推摘要，也往这里探活。
-              它由部署登记，**不会**从接入命令里传 —— 没地址就别想接进来。
+              一个系统只需要一个名称。收数地址不在这一步问 —— 自注册接入时由对方自己报上来，
+              传统接入的在下面列表里补。
             </p>
           </div>
         </div>
@@ -244,25 +158,13 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
               title="小写字母、数字、连字符；不能以连字符开头或结尾"
               onChange={(event) => setForm({ ...form, name: event.target.value })}
             />
-          </div>
-          <div className="sentence-row">
-            <span className="sentence-word">收数地址</span>
-            <input
-              required
-              className="sentence-input"
-              value={form.endpoint}
-              placeholder="https://host:3103/api/v1/internal/credentials"
-              pattern="https://.+"
-              title="必须是 https://：推送走双向 TLS"
-              onChange={(event) => setForm({ ...form, endpoint: event.target.value })}
-            />
             <button type="submit" disabled={submitting}>
-              {submitting ? "创建中…" : "创建并生成接入命令"}
+              {submitting ? "创建中…" : "创建并生成接入令牌"}
             </button>
           </div>
           <p className="field-hint sentence-hint">
-            名称同时是凭证的受众与证书 SAN；主机名自动取自地址。
-            地址在列表里可改（改完下一轮心跳即生效），接入时对方**只需要报自己的主机名**。
+            名称同时是凭证的受众与证书 SAN。收数地址随时可在下面「已接入」列表里点开那一行改
+            （下一轮心跳生效）；没有地址的系统用传统 join.sh 接入会被拒。
           </p>
         </form>
       </section>
@@ -366,7 +268,7 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
                       disabled={minting !== null}
                       onClick={() => void mint(peer.name)}
                     >
-                      {minting === peer.name ? "生成中…" : "接入命令"}
+                      {minting === peer.name ? "生成中…" : "接入令牌"}
                     </button>
                   </div>
 
@@ -387,17 +289,14 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
           <div className="panel-head">
             <div>
               <h2>接入 · {link.peer}</h2>
-              <p className="muted small">
-                两种接法，二选一：<strong>自注册</strong>（推荐，只有一串券）或传统接入命令。
-              </p>
             </div>
             <button type="button" className="ghost" onClick={() => setLink(null)}>
               收起
             </button>
           </div>
           <p className="warn">
-            一次性券，{Math.round(link.expires_in / 60)} 分钟内有效，<strong>登记时作废</strong>。
-            两种接法都不传私钥：对方在本机生成密钥，只交 CSR，证书按 CSR 签出。
+            一次性令牌，{Math.round(link.expires_in / 60)} 分钟内有效，<strong>登记时作废</strong>。
+            私钥不出对方机器：它只交 CSR，证书按 CSR 签出。
           </p>
           {linkNeedsAddress && (
             <p className="warn">
@@ -408,111 +307,19 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
 
           <div className="ticket-box">
             <p className="muted small">
-              <strong>① 自注册（推荐）</strong>：在对方机器的初始化页（
-              <span className="mono">/__init</span>）里填这串券 —— 它自己生成密钥、自己登记，
-              之后收数监听自己起来。
+              在对方机器的初始化页（<span className="mono">/__init</span>）里填这串令牌 ——
+              它自己生成密钥、自己登记，之后收数监听自己起来。
             </p>
             <div className="token-actions">
               <code className="secret">{linkTicket}</code>
               <button type="button" onClick={() => void copyTicket()}>
-                {copied === "ticket" ? "已复制" : "复制券"}
+                {copied === "ticket" ? "已复制" : "复制"}
               </button>
             </div>
             <p className="muted small">
               这串东西就是接入授权本身（等同于一次性口令）：发完就别留在聊天记录里。
             </p>
           </div>
-
-          <details className="ticket-box">
-            <summary className="muted small">
-              ② 传统方式：跑接入命令（自己写 cred.toml + 摆材料）
-            </summary>
-            <p className="muted small">
-              在对方机器上要带上 <span className="mono">--roles a,b,c</span> 登记它能验的角色；
-              之后发凭证只能从这张表里选。改角色也是这条路 —— 重新生成一次命令，带新的
-              <span className="mono">--roles</span> 重跑（当前值会补进命令里，不带就保持原样）。
-            </p>
-
-          <div className="setup-fields">
-            <p className="muted small">
-              脚本会在材料目录里生成 <span className="mono">cred.toml</span>（只写
-              [identity] 与 [verify]），程序启动时加一行
-              <span className="mono">--credentials &lt;路径&gt;</span> 指过来就行。
-              它必须与材料同目录（相对路径按文件目录解），所以这里不提供改路径。
-              <strong>部署栈里必须填材料目录</strong>（默认值会被护栏拦下）。
-            </p>
-            <div className="inline-edit">
-              <select
-                value=""
-                onChange={(event) => {
-                  if (event.target.value) setSetupDir(event.target.value);
-                }}
-              >
-                <option value="">常用位置…</option>
-                {dirOptions.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-              <input
-                value={setupDir}
-                placeholder="材料目录（部署栈里必填），如 ./identity/center/cred"
-                onChange={(event) => setSetupDir(event.target.value)}
-              />
-            </div>
-            <div className="inline-edit">
-              <select
-                value=""
-                onChange={(event) => {
-                  if (event.target.value) setSetupRoles(event.target.value);
-                }}
-              >
-                <option value="">常用角色…</option>
-                {ROLE_PRESETS.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-              <input
-                value={setupRoles}
-                placeholder="角色（逗号分隔），留空 = 沿用已登记的"
-                onChange={(event) => setSetupRoles(event.target.value)}
-              />
-            </div>
-            <div className="inline-edit">
-              <input
-                value={setupRestart}
-                placeholder="重启命令（可选），如 gops run stop && gops run start"
-                onChange={(event) => setSetupRestart(event.target.value)}
-              />
-              <button
-                type="button"
-                disabled={setupSaving}
-                onClick={() => void saveSetup()}
-              >
-                {setupSaving ? "保存中…" : "保存为默认"}
-              </button>
-            </div>
-          </div>
-
-          <code className="secret">
-            {linkCommand(link.path, {
-              dir: setupDir,
-              roles: setupRoles.split(","),
-              restartCmd: setupRestart,
-            })}
-          </code>
-          <div className="token-actions">
-            <button type="button" onClick={() => void copy()}>
-              {copied === "command" ? "已复制" : "复制"}
-            </button>
-            <span className="muted small">
-              材料目录与 cred.toml 同目录；cred.toml 会被整份重写
-            </span>
-          </div>
-          </details>
         </section>
       )}
     </>
