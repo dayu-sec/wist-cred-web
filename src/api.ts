@@ -185,11 +185,12 @@ export interface OnboardingLink {
 
 export interface CreatePeerInput {
   name: string;
-  /** 一般不用给：主机名与收数地址都由对方登记时上报。 */
+  /** **必填**的收数地址（部署登记的事实）：没有它 cred 推不了也探不了。 */
+  endpoint: string;
+  /** 可选：证书 SAN；不给就从地址推。 */
   host?: string;
-  endpoint?: string;
   healthz?: string;
-  /** 一般也不用给：由对方登记时上报。 */
+  /** 可选：对方能验的角色；平常由它接入时上报。 */
   roles?: string[];
 }
 

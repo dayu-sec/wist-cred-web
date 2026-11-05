@@ -15,9 +15,11 @@ interface Props {
 
 interface FormState {
   name: string;
+  /** 收数地址：建系统时必填，之后可不改。 */
+  endpoint: string;
 }
 
-const EMPTY_FORM: FormState = { name: "" };
+const EMPTY_FORM: FormState = { name: "", endpoint: "" };
 
 /**
  * 材料目录的常见落点：已经在用的（别的认证系统存过的）排前面，再补几个静态项。
@@ -77,13 +79,6 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
   const [setupRoles, setSetupRoles] = useState("");
   const [setupRestart, setSetupRestart] = useState("");
   const [setupSaving, setSetupSaving] = useState(false);
-  /**
-   * 收数地址（`--advertise`）：**带进命令里**，接入那一刻由对方上报给 cred。
-   *
-   * 为什么不只靠页面上的「收数地址」列：那个值只有在**接入成功后**才有（它是对端报的）。
-   * 要接入的系统正好没有这个值 —— 而脚本没地址就拒跑。所以这里必须能填。
-   */
-  const [setupAdvertise, setSetupAdvertise] = useState("");
 
   async function mint(peer: string) {
     setMinting(peer);
@@ -95,8 +90,6 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
     // 否则“保存 → 重新签发”会把人刚选的组合清掉。
     setSetupRoles((previous) => previous || (record?.roles.join(",") ?? ""));
     setSetupRestart(record?.restart_cmd ?? "");
-    // 已登记过地址就预填（脚本里也会烘一份），否则留空 —— 留空时命令会被拒跑，页面上有提示。
-    setSetupAdvertise(record?.endpoint ?? "");
     try {
       setLink(await mintOnboardingLink(peer));
       setLocalError(null);
@@ -115,7 +108,6 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
           dir: setupDir,
           roles: setupRoles.split(","),
           restartCmd: setupRestart,
-          advertise: setupAdvertise,
         }),
       ),
     );
@@ -129,16 +121,9 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
       dir: setupDir,
       roles: setupRoles,
       restart: setupRestart,
-      advertise: setupAdvertise,
     };
     setSetupSaving(true);
     try {
-      // 地址存下来，它就不再是 no_endpoint（会开始心跳）——但也只是“有这个地址”，
-      // 能不能握手要等对方真的听在那里。
-      const address = saved.advertise.trim();
-      if (address && address !== (linkPeer?.endpoint ?? "")) {
-        await setPeerEndpoint(peer, address);
-      }
       await setPeerSetup(peer, {
         install_dir: saved.dir.trim() || null,
         config_path: null,
@@ -152,7 +137,6 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
       setSetupDir(saved.dir);
       setSetupRoles(saved.roles);
       setSetupRestart(saved.restart);
-      setSetupAdvertise(saved.advertise);
     } catch (err) {
       setLocalError(describe(err));
     } finally {
@@ -167,19 +151,22 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
       )
     : [];
 
-  /** 命令里到底有没有收数地址：没有就一定会被对方拒跑，要提前说。 */
-  const linkNeedsAddress = Boolean(link) && setupAdvertise.trim() === "";
-
-  /** 已签发的这个系统在列表里的那条记录（“保存为默认”要跟它比地址改没改）。 */
+  /** 已签发的这个系统在列表里的那条记录。 */
   const linkPeer = link
     ? (boarding?.peers.find((peer) => peer.name === link.peer) ?? null)
     : null;
+
+  /** 要签命令的这个系统**没有收数地址**（被撤销了）：接入会被拒，要提前说。 */
+  const linkNeedsAddress = Boolean(link) && linkPeer !== null && !linkPeer.endpoint;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setSubmitting(true);
     try {
-      const input: CreatePeerInput = { name: form.name.trim() };
+      const input: CreatePeerInput = {
+        name: form.name.trim(),
+        endpoint: form.endpoint.trim(),
+      };
 
       const created = await createPeer(input);
       setForm(EMPTY_FORM);
@@ -224,7 +211,8 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
           <div>
             <h2>新建认证系统</h2>
             <p className="muted small">
-              只要一个名字。主机名、收数地址和角色都由对方接入时自己上报 —— 它比我们清楚自己叫什么、在哪里听、能验什么。
+              地址是**真实的收数地址**：cred 往这里推摘要，也往这里探活。
+              它由部署登记，**不会**从接入命令里传 —— 没地址就别想接进来。
             </p>
           </div>
         </div>
@@ -246,14 +234,27 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
               placeholder="wist-ingest"
               pattern="[a-z0-9]([a-z0-9-]*[a-z0-9])?"
               title="小写字母、数字、连字符；不能以连字符开头或结尾"
-              onChange={(event) => setForm({ name: event.target.value })}
+              onChange={(event) => setForm({ ...form, name: event.target.value })}
+            />
+          </div>
+          <div className="sentence-row">
+            <span className="sentence-word">收数地址</span>
+            <input
+              required
+              className="sentence-input"
+              value={form.endpoint}
+              placeholder="https://host:3103/api/v1/internal/credentials"
+              pattern="https://.+"
+              title="必须是 https://：推送走双向 TLS"
+              onChange={(event) => setForm({ ...form, endpoint: event.target.value })}
             />
             <button type="submit" disabled={submitting}>
               {submitting ? "创建中…" : "创建并生成接入命令"}
             </button>
           </div>
           <p className="field-hint sentence-hint">
-            这个名字同时是凭证的受众与证书 SAN；接入后会被对方上报的主机名/地址填满。
+            名称同时是凭证的受众与证书 SAN；主机名自动取自地址。
+            地址在列表里可改（改完下一轮心跳即生效），接入时对方**只需要报自己的主机名**。
           </p>
         </form>
       </section>
@@ -392,9 +393,8 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
           </p>
           {linkNeedsAddress && (
             <p className="warn">
-              还没有<strong>收数地址</strong>：这条命令会在对方机器上直接拒跑
-              （不给地址就会“登记成功、却永远收不到推送”）。在下面的「收数地址」里填上，
-              或者让对方加 <span className="mono">--manual</span> 显式只做人工分发。
+              这个系统<strong>没有收数地址</strong>（被撤销了）：命令照样能跑，但登记会被拒
+              —— 推不了、探不了的系统不允许接入。先在上面列表里把地址补上再过。
             </p>
           )}
           <p className="muted small">
@@ -405,32 +405,12 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
 
           <div className="setup-fields">
             <p className="muted small">
-              <strong>收数地址</strong>（<span className="mono">--advertise</span>）是对方收摘要的地址：
-              接入时登记到 cred，之后推送与心跳都用它。它一般长这样：
-              <span className="mono">https://&lt;对方主机&gt;:&lt;端口&gt;/api/v1/internal/credentials</span>。
-              不填 = 对方机器上拒跑（只做人工分发请让对方加 <span className="mono">--manual</span>）。
-              {linkPeer?.host && (
-                <>
-                  {" "}
-                  已登记的主机名是 <span className="mono">{linkPeer.host}</span>，
-                  地址里的主机名必须与它一致（否则登记会被拒：<span className="mono">host_mismatch</span>）。
-                </>
-              )}
-            </p>
-            <p className="muted small">
               脚本会在材料目录里生成 <span className="mono">cred.toml</span>（只写
               [identity] 与 [verify]），程序启动时加一行
               <span className="mono">--credentials &lt;路径&gt;</span> 指过来就行。
               它必须与材料同目录（相对路径按文件目录解），所以这里不提供改路径。
               <strong>部署栈里必须填材料目录</strong>（默认值会被护栏拦下）。
             </p>
-            <div className="inline-edit">
-              <input
-                value={setupAdvertise}
-                placeholder="收数地址（必填），如 https://host:3103/api/v1/internal/credentials"
-                onChange={(event) => setSetupAdvertise(event.target.value)}
-              />
-            </div>
             <div className="inline-edit">
               <select
                 value=""
@@ -492,7 +472,6 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
               dir: setupDir,
               roles: setupRoles.split(","),
               restartCmd: setupRestart,
-              advertise: setupAdvertise,
             })}
           </code>
           <div className="token-actions">

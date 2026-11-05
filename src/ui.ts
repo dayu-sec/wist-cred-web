@@ -48,13 +48,6 @@ export interface LinkOptions {
   configPath?: string;
   /** 写完配置后的重启命令；填了命令就带 `--restart`。 */
   restartCmd?: string;
-  /**
-   * X 的收数地址；填了命令就带 `--advertise`。
-   *
-   * **不填就是“这条命令会在对方机器上被拒跑”** —— 没有地址时 cred 不探也不推，
-   * 接入脚本故意不再默许。页面必须能把它传下去，否则操作者拿着命令无处补。
-   */
-  advertise?: string;
 }
 
 /**
@@ -72,9 +65,7 @@ export function linkCommand(path: string, options: LinkOptions = {}): string {
   const roles = (options.roles ?? []).map((role) => role.trim()).filter(Boolean);
   const config = options.configPath?.trim();
   const restart = options.restartCmd?.trim();
-  const advertise = options.advertise?.trim();
   if (dir) args.push(`--dir ${shellQuote(dir)}`);
-  if (advertise) args.push(`--advertise ${shellQuote(advertise)}`);
   if (roles.length > 0) args.push(`--roles ${shellQuote(roles.join(","))}`);
   if (config) args.push(`--config ${shellQuote(config)}`);
   if (restart) args.push(`--restart ${shellQuote(restart)}`);
