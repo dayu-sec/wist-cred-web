@@ -77,10 +77,28 @@ body {
   gap: 12px;
 }
 
+/* 三个版本号：页面 / 凭据服务 / 部署栈。
+   名字压暗、版本号提亮 —— 一眼能分出「哪一项是什么、是哪版」；窄屏自动换行。 */
 .version {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 14px;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 11px;
   color: var(--muted);
+}
+
+.version-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.version-name {
+  color: var(--muted);
+  opacity: 0.75;
 }
 
 .panel {

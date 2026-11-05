@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { ApiError, listCredentials, listOnboardingPeers, getPolicy } from "./api";
-import type { Credential, IssuePolicy, OnboardingState } from "./api";
+import { ApiError, getPolicy, getServiceVersion, listCredentials, listOnboardingPeers } from "./api";
+import type { Credential, IssuePolicy, OnboardingState, ServiceVersion } from "./api";
 import { AUTH_CHANGED_EVENT, clearPassword, getPassword } from "./auth";
 import { BrandMark } from "./BrandMark";
 import Credentials from "./pages/Credentials";
@@ -9,7 +9,15 @@ import Systems from "./pages/Systems";
 import Login from "./Login";
 import { describe } from "./ui";
 
-const VERSION = import.meta.env.VITE_APP_VERSION ?? "dev";
+const VERSION = import.meta.env.VITE_APP_VERSION ?? "";
+
+/** 版本号统一成 `vX.Y.Z`：构建期注入的是发布 tag（自带 `v`），服务端返回纯 semver。
+ *  已带 `v` 就原样、否则补一个 —— 免得拼出 `vv0.4.0-alpha`（这一处曾经就是）。 */
+function formatVersion(raw: string | null | undefined): string {
+  const value = (raw ?? "").trim();
+  if (value === "") return "—";
+  return value.startsWith("v") ? value : `v${value}`;
+}
 
 /** 两个页面。用 hash 路由，刷新和分享都能落回同一页（不引 react-router）。 */
 type Tab = "credentials" | "systems";
@@ -37,6 +45,8 @@ export default function App() {
   const [boarding, setBoarding] = useState<OnboardingState | null>(null);
   const [boardingError, setBoardingError] = useState<string | null>(null);
   const [policy, setPolicy] = useState<IssuePolicy | null>(null);
+  // 服务端版本（wist-cred / wist-cred-stack）：公开端点，拿不到就是 null（显示 `—`）。
+  const [serviceVersion, setServiceVersion] = useState<ServiceVersion | null>(null);
 
   /** 401 = 缺口令 / 口令不对：不是“页面出错”，而是该回登录框。 */
   const needsLogin = (err: unknown) => err instanceof ApiError && err.status === 401;
@@ -81,11 +91,21 @@ export default function App() {
     }
   }, []);
 
+  const reloadVersion = useCallback(async () => {
+    try {
+      setServiceVersion(await getServiceVersion());
+    } catch {
+      // 旧 cred 没有这条路由（404）：保留 null，页面显示 `—`，不影响别的功能。
+      setServiceVersion(null);
+    }
+  }, []);
+
   useEffect(() => {
     void reload();
     void reloadBoarding();
     void reloadPolicy();
-  }, [reload, reloadBoarding, reloadPolicy]);
+    void reloadVersion();
+  }, [reload, reloadBoarding, reloadPolicy, reloadVersion]);
 
   // 心跳状态是会变的：页面开着的时候轻量轮询一下，不然只能靠手动刷新。
   // 没登录时不轮询：否则每 10s 一次 401，把“没口令”刷成噪音。
@@ -119,7 +139,7 @@ export default function App() {
   }
 
   async function refresh() {
-    await Promise.all([reload(), reloadBoarding(), reloadPolicy()]);
+    await Promise.all([reload(), reloadBoarding(), reloadPolicy(), reloadVersion()]);
   }
 
   function logout() {
@@ -152,7 +172,20 @@ export default function App() {
           </div>
         </div>
         <div className="topbar-right">
-          <span className="version">v{VERSION}</span>
+          <span className="version" aria-label="版本信息">
+            <span className="version-item">
+              <span className="version-name">wist-cred-web</span>
+              {formatVersion(VERSION)}
+            </span>
+            <span className="version-item">
+              <span className="version-name">wist-cred</span>
+              {formatVersion(serviceVersion?.version)}
+            </span>
+            <span className="version-item">
+              <span className="version-name">wist-cred-stack</span>
+              {formatVersion(serviceVersion?.stackVersion)}
+            </span>
+          </span>
           <button
             type="button"
             className="ghost"

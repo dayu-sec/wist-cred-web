@@ -21,6 +21,10 @@ interface FormState {
   picked: string[];
 }
 
+/** 认证系统不多时直接铺成 chip：一次点击选中、全部可见，也不用弹系统原生下拉。
+ *  超过这个数才退回 `<select>`（系统很多时铺开会占掉半屏）。 */
+const AUDIENCE_CHIP_LIMIT = 10;
+
 /** 常见有效期。`null` = 不传，服务端按上限算。 */
 const TTL_PRESETS: { label: string; seconds: number | null }[] = [
   { label: "10 分钟", seconds: 600 },
@@ -280,14 +284,34 @@ export default function Credentials({
               认证系统
               {singleAudience ? (
                 <div className="static-field mono">{singleAudience}</div>
+              ) : !hasAudience ? (
+                <div className="static-field muted">（先去接入一个系统）</div>
+              ) : audienceOptions.length <= AUDIENCE_CHIP_LIMIT ? (
+                // 选项两三个到十个：铺开成一组单选 chip —— 不用展开、不用滚，
+                // 也不用看系统原生的蓝色下拉（那个和深色页面不是一个语言）。
+                <div className="chips" role="radiogroup" aria-label="认证系统">
+                  {audienceOptions.map((audience) => {
+                    const on = form.audience === audience;
+                    return (
+                      <button
+                        key={audience}
+                        type="button"
+                        role="radio"
+                        aria-checked={on}
+                        className={on ? "chip active" : "chip"}
+                        onClick={() => setForm({ ...form, audience })}
+                      >
+                        {audience}
+                      </button>
+                    );
+                  })}
+                </div>
               ) : (
                 <select
                   required
                   value={form.audience}
-                  disabled={!hasAudience}
                   onChange={(event) => setForm({ ...form, audience: event.target.value })}
                 >
-                  {!hasAudience && <option value="">（先去接入一个系统）</option>}
                   {audienceOptions.map((audience) => (
                     <option key={audience} value={audience}>
                       {audience}

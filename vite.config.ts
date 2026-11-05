@@ -1,5 +1,19 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+
+// 页面版本（`import.meta.env.VITE_APP_VERSION`）在运行态由 Docker 构建注入
+// （`--build-arg APP_VERSION=<发布 tag>`）。dev / 本地 `npm run build` 没有它，
+// 用仓库根 `version.txt` 补上 —— 否则右上角那一行会显示 `—`，看不出自己在跑哪版。
+if (!process.env.VITE_APP_VERSION) {
+  try {
+    process.env.VITE_APP_VERSION =
+      readFileSync(resolve(process.cwd(), "version.txt"), "utf8").trim() || "";
+  } catch {
+    // 没有 version.txt 就留空：页面显示 `—`，不编版本号。
+  }
+}
 
 // dev server 把 /api 代理到本地 cred，并**注入操作者头**。
 //
