@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import { ApiError, createCredential, redeliverCredential, revokeCredential } from "../api";
@@ -121,6 +121,12 @@ export default function Credentials({
   });
   const [submitting, setSubmitting] = useState(false);
   const [created, setCreated] = useState<CreatedCredential | null>(null);
+  /** 创建成功后把令牌块滚进视野：表单在页面下方，顶部横幅可能正好在屏幕外。 */
+  const createdRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!created) return;
+    createdRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [created]);
   const [copied, setCopied] = useState(false);
   /** 重推成功的短提示（列表本身不变，不给个反馈像是没点）。 */
   const [notice, setNotice] = useState<string | null>(null);
@@ -274,28 +280,6 @@ export default function Credentials({
         </div>
       )}
 
-      {created && (
-        <div className="banner token">
-          <div className="token-head">
-            <strong>凭据已创建：{created.audience}</strong>
-            <button type="button" className="ghost" onClick={() => setCreated(null)}>
-              知道了
-            </button>
-          </div>
-          <p className="warn">
-            明文只显示这一次，离开本页后服务端只会保留 sha256 摘要，无法再取回。
-          </p>
-          <code className="secret">{created.token}</code>
-          <div className="token-actions">
-            <button type="button" onClick={() => void copy()}>
-              {copied ? "已复制" : "复制"}
-            </button>
-            <span className="muted">
-              {created.credential_id} · {created.audience} · 到期 {formatTime(created.expires_at)}
-            </span>
-          </div>
-        </div>
-      )}
 
       <div className="page-split">
         {/* 这一页的主轴是"哪套认证系统"：左列选它，右边为它签发、也只看它的凭据。 */}
@@ -355,6 +339,30 @@ export default function Credentials({
                 </p>
               </div>
             </div>
+
+            {created && (
+              <div className="banner token" ref={createdRef}>
+                <div className="token-head">
+                  <strong>凭据已创建：{created.audience}</strong>
+                  <button type="button" className="ghost" onClick={() => setCreated(null)}>
+                    知道了
+                  </button>
+                </div>
+                <p className="warn">
+                  明文只显示这一次，离开本页后服务端只会保留 sha256 摘要，无法再取回。
+                </p>
+                <code className="secret">{created.token}</code>
+                <div className="token-actions">
+                  <button type="button" onClick={() => void copy()}>
+                    {copied ? "已复制" : "复制"}
+                  </button>
+                  <span className="muted">
+                    {created.credential_id} · {created.audience} · 到期{" "}
+                    {formatTime(created.expires_at)}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {!hasAudience && (
               <p className="warn">
@@ -537,7 +545,12 @@ export default function Credentials({
                   {selectedItems.map((item) => {
                     const state = stateOf(item);
                     return (
-                      <tr key={item.credential_id}>
+                      <tr
+                        key={item.credential_id}
+                        className={
+                          created?.credential_id === item.credential_id ? "fresh" : undefined
+                        }
+                      >
                         <td className="small">
                           {item.purpose}
                           <div className="muted small mono">

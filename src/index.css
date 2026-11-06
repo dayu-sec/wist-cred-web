@@ -787,6 +787,11 @@ tr:last-child td {
   font-weight: 600;
 }
 
+/* 刚签发的那一行：淡淡地提一下，方便在长列表里找到它（点了「知道了」就消失）。 */
+tbody tr.fresh td {
+  background: rgba(77, 163, 255, 0.07);
+}
+
 /* 已发放凭据：统计只算左边选中的那一套系统。 */
 .stat-row {
   display: flex;
