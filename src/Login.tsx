@@ -12,8 +12,9 @@ import { describe } from "./ui";
  * 那个没有登录框、没有登出、改不了提示。这里输的口令存在本标签页（`auth.ts`），
  * 请求带 `Authorization: Bearer`，由 `wist-cred` 的 `server.mode = "token"` 验。
  *
- * 只在前端收到 401 时出现：`mode = "ingress"`（开发态 / 已由入口认证）下请求本来就通，
- * 这时不该先要求输口令。
+ * 只在前端收到 401 时出现 —— 包装再包一层登录页没有意义。开发态下 vite 代理会在页面
+ * **没带**口令时补一把 dev 口令，所以本地打开时通常看不到它；想在本地看登录框，
+ * 就在里面输一个错口令（页面带上它 → 401），代理不会覆盖已带的口令。
  */
 export default function Login({ onDone }: { onDone: () => void }) {
   const [value, setValue] = useState("");

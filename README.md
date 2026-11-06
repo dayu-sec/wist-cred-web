@@ -24,7 +24,7 @@
 |---|---|
 | 没口令 / 口令不对（401） | 弹登录框（`src/Login.tsx`）；服务端说 `invalid_admin_bearer_token` 时**就地清掉**本地口令，不会拿错口令反复轮询 |
 | 已登录 | 右上角显示「退出」；换口令 = 退出重输 |
-| 开发态（cred 跑 `mode = "ingress"`） | 请求本来就通，什么都不弹 —— vite 代理注入 `x-wist-operator` 只是 dev 便利 |
+| 开发态 | 与发布态同一条路（`mode = "token"`）；vite 代理只在页面**没带**口令时补上 `WIST_CRED_DEV_PASSWORD`（默认 `dev-only-password`），所以登录框 / 错口令 / 401 在 dev 里也是真的 |
 
 浏览器**拿不到平台签发的 token**：那是给程序用的，明文只在创建响应里出现一次。
 
@@ -40,7 +40,7 @@ npm run dev        # http://127.0.0.1:5174
 | env | 默认 | 说明 |
 |---|---|---|
 | `WIST_CRED_TARGET` | `http://127.0.0.1:18443` | cred 地址 |
-| `WIST_OPERATOR` | `dev` | dev 下注入的操作者名（发布态不走这条） |
+| `WIST_CRED_DEV_PASSWORD` | `dev-only-password` | 页面**没带**口令时，代理补上的 dev 口令（带了就不覆盖） |
 | `WIST_CRED_WEB_PORT` | `5174` | dev server 端口 |
 
 配套：`wist-cred-stack` 的 `./dev/svc.sh start` 会同时起 cred 与 web。
