@@ -15,14 +15,17 @@ if (!process.env.VITE_APP_VERSION) {
   }
 }
 
-// dev server 把 /api 代理到本地 cred，并**注入操作者头**。
+// dev server 把 /api 代理到本地 cred，并在**请求没带口令时**补一把 dev 口令。
 //
-// 为什么注入放在 dev server：开发态的 cred 跑在 `mode = "ingress"`（不想每次开发都输口令）。
-// 浏览器不能自己带 `x-wist-operator`（那是身份，不是页面能决定的东西），所以由代理写。
-// **发布态不是这么干的**：`mode = "token"` —— 页面里有登录框，口令由 cred 自己验，
-// 这一层不碰身份。
+// 为什么：开发态的 cred 用 `mode = "token"`（曾经有一个 `mode = "ingress"`，身份由反代注入
+// `x-wist-operator`，2026-11 已删除 —— 那等于信任一个客户端可伪造的头）。为了“打开就能用”，
+// 代理补上栈里 `dev/svc.sh` 生成的同一把 `WIST_CRED_DEV_PASSWORD`。
+//
+// 只在页面自己**没带** `Authorization` 时才补：带了就以页面为准，这样登录框、错口令、401
+// 这些路径在 dev 里仍是真的，而不是被代理一口吃掉。
+// **发布态不注入任何东西**：口令由页面自己输，这一层不碰身份。
 const target = process.env.WIST_CRED_TARGET ?? "http://127.0.0.1:18443";
-const operator = process.env.WIST_OPERATOR ?? "dev";
+const devPassword = process.env.WIST_CRED_DEV_PASSWORD ?? "dev-only-password";
 
 export default defineConfig({
   plugins: [react()],
@@ -35,7 +38,14 @@ export default defineConfig({
       "/api": {
         target,
         changeOrigin: true,
-        headers: { "x-wist-operator": operator },
+        // 页面没带口令时才补：带了就让 cred 真的去验，别让 dev 把认证路径吃掉。
+        configure: (proxy) => {
+          proxy.on("proxyReq", (proxyReq, req) => {
+            if (!req.headers.authorization) {
+              proxyReq.setHeader("authorization", `Bearer ${devPassword}`);
+            }
+          });
+        },
       },
       // 一次性接入券（join.sh / certificate）。dev 下必须一起代理，
       // 否则页面生成的 curl 地址在 5174 上会 404。
