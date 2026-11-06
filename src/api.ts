@@ -251,6 +251,18 @@ export function mintOnboardingLink(peer: string): Promise<OnboardingLink> {
   );
 }
 
+/**
+ * 删除一个认证系统（`DELETE /api/v1/peers/{name}`）。
+ *
+ * 只把它从注册表里去掉：不再推送、不再探活；**已签发的凭据不跟着吊销** ——
+ * 想停用要逐条撤销（页面在确认框里会说清这一点）。
+ */
+export async function deletePeer(name: string): Promise<void> {
+  await request<{ removed: string }>(`/peers/${encodeURIComponent(name)}`, {
+    method: "DELETE",
+  });
+}
+
 /** 改收数地址；传 null = 退回手工分发。 */
 export function setPeerEndpoint(
   peer: string,

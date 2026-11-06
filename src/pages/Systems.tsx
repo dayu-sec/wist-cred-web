@@ -1,13 +1,16 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 
-import { createPeer, mintOnboardingLink, setPeerEndpoint } from "../api";
-import type { OnboardingLink, OnboardingPeer, OnboardingState } from "../api";
+import { createPeer, deletePeer, mintOnboardingLink, setPeerEndpoint } from "../api";
+import type { Credential, OnboardingLink, OnboardingPeer, OnboardingState } from "../api";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { copyText, describe, ticketFromPath } from "../ui";
 
 interface Props {
   boarding: OnboardingState | null;
   error: string | null;
+  /** 已发放凭据：删除确认里要说清"它还有 N 条没吊销"。 */
+  credentials: Credential[];
   onReload: () => void;
   /** 去「访问凭证」页（接好之后紧接着要发凭证）。 */
   onGoCredentials: () => void;
@@ -39,7 +42,13 @@ function healthOf(peer: OnboardingPeer): { label: string; className: string } {
  * 「可联通」是心跳探出来的：cred 用自己的客户端证书按周期去敲 `probe_url`。
  * 只有能握手，推送才有意义 —— 证书过期、链不对、时间偏都会在这里先暴露。
  */
-export default function Systems({ boarding, error, onReload, onGoCredentials }: Props) {
+export default function Systems({
+  boarding,
+  error,
+  credentials,
+  onReload,
+  onGoCredentials,
+}: Props) {
   const [link, setLink] = useState<OnboardingLink | null>(null);
   const [minting, setMinting] = useState<string | null>(null);
   const [copied, setCopied] = useState<"" | "ticket">("");
@@ -52,6 +61,10 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
+
+  /** 待删除的系统（非 null 就弹二次确认框）。 */
+  const [pendingDelete, setPendingDelete] = useState<OnboardingPeer | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function mint(peer: string) {
     setMinting(peer);
@@ -123,8 +136,31 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
     }
   }
 
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    try {
+      await deletePeer(pendingDelete.name);
+      // 接入面板正开着这个系统：一起收掉，否则会指着一个不存在的系统。
+      if (link?.peer === pendingDelete.name) setLink(null);
+      if (editing === pendingDelete.name) setEditing(null);
+      setPendingDelete(null);
+      setLocalError(null);
+      onReload();
+    } catch (err) {
+      setLocalError(describe(err));
+      setPendingDelete(null);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   const shown = localError ?? error;
   const peers = boarding?.peers ?? [];
+  /** 待删除的系统还有几条凭据（确认框里要说清：删除不吊销它们）。 */
+  const pendingIssued = pendingDelete
+    ? credentials.filter((item) => item.audience === pendingDelete.name).length
+    : 0;
 
   return (
     <>
@@ -270,6 +306,14 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
                     >
                       {minting === peer.name ? "生成中…" : "接入令牌"}
                     </button>
+                    <button
+                      type="button"
+                      className="danger"
+                      title="从注册表里删除这套认证系统"
+                      onClick={() => setPendingDelete(peer)}
+                    >
+                      删除
+                    </button>
                   </div>
 
                   {peer.last_error && !isEditing && (
@@ -322,6 +366,31 @@ export default function Systems({ boarding, error, onReload, onGoCredentials }: 
           </div>
         </section>
       )}
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title={`删除认证系统 ${pendingDelete?.name ?? ""}？`}
+        requireText={pendingDelete?.name}
+        busy={deleting}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => void confirmDelete()}
+      >
+        <p>
+          它会从「已接入」名单里消失：cred 不再往它推送、不再探活，
+          也不能再给它签发新凭据（受众列表里就没有它了）。
+        </p>
+        {pendingIssued > 0 ? (
+          <p className="warn">
+            它已经签发过 <strong>{pendingIssued}</strong> 条凭据，这些凭据不会跟着吊销 ——
+            要停用请先去「访问凭证」里逐条撤销。
+          </p>
+        ) : (
+          <p className="muted small">它还没有签发过凭据。</p>
+        )}
+        <p className="muted small">
+          如果它是部署栈里的系统（<span className="mono">identity/cred/onboarding/</span>
+          ），删掉后重启也不会再导入回来；要恢复得在栈里重新 localize，或直接再建一个同名系统。
+        </p>
+      </ConfirmDialog>
     </>
   );
 }

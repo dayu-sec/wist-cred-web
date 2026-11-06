@@ -227,6 +227,7 @@ export default function App() {
         <Systems
           boarding={boarding}
           error={boardingError}
+          credentials={items}
           onReload={() => void reloadBoarding()}
           onGoCredentials={() => go("credentials")}
         />

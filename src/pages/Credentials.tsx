@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 
 import { ApiError, createCredential, redeliverCredential, revokeCredential } from "../api";
@@ -241,34 +241,18 @@ export default function Credentials({
     setCopied(await copyText(created.token));
   }
 
-  // 按认证系统汇总：「签发了多少、还有多少有效、多少过期」比一长串明细更能回答问题。
-  // 明细默认收起，需要撤销/重推时再展开。
-  const audienceGroups = useMemo(() => {
-    const byAudience = new Map<string, Credential[]>();
-    for (const item of items) {
-      const list = byAudience.get(item.audience) ?? [];
-      list.push(item);
-      byAudience.set(item.audience, list);
-    }
-    return [...byAudience.entries()]
-      .map(([audience, list]) => {
-        const counts = { valid: 0, expired: 0, revoked: 0 };
-        for (const item of list) counts[stateOf(item).key] += 1;
-        return { audience, items: list, counts, total: list.length };
-      })
-      // 签发得多的排前面；同样多按名字，顺序稳定。
-      .sort((a, b) => b.total - a.total || a.audience.localeCompare(b.audience));
-  }, [items]);
-
-  /** 展开中的系统名（明细默认收起：页面先答"各系统签了多少"，而不是先铺 14 行）。 */
-  const [openAudiences, setOpenAudiences] = useState<string[]>([]);
-  function toggleAudience(audience: string) {
-    setOpenAudiences((prev) =>
-      prev.includes(audience)
-        ? prev.filter((item) => item !== audience)
-        : [...prev, audience],
-    );
-  }
+  // 统计跟着左边选中的系统走：这一页的主轴就是"哪套认证系统"，
+  // 换系统时下面的「已发放凭据」跟着换，而不是把所有系统摊在一张表里。
+  const selectedItems = useMemo(
+    () => items.filter((item) => item.audience === form.audience),
+    [items, form.audience],
+  );
+  const selectedStats = useMemo(() => {
+    if (!form.audience) return null;
+    const counts = { total: selectedItems.length, valid: 0, expired: 0, revoked: 0 };
+    for (const item of selectedItems) counts[stateOf(item).key] += 1;
+    return counts;
+  }, [selectedItems, form.audience]);
 
   const hasAudience = audienceOptions.length > 0;
   // 角色只能从认证系统登记过的表里选：一个都没登记就没东西可签。
@@ -310,295 +294,271 @@ export default function Credentials({
         </div>
       )}
 
-      <section className="panel">
-        <div className="panel-head">
-          <div>
-            <h2>新建访问凭证</h2>
-            <p className="muted small">左边选认证系统，右边填一把只对它有效的钥匙。</p>
-          </div>
-        </div>
-
-        {!hasAudience && (
-          <p className="warn">
-            还没有可选的认证系统，先去{' '}
-            <button type="button" className="linklike" onClick={onGoSystems}>
-              认证系统
-            </button>{' '}
-            接入一个。
-          </p>
-        )}
-
-        {/* 系统选择做成左列菜单：它决定右边能填什么（角色表来自该系统的登记），
-            本来就该是导航，而不是表单里的一行选项。系统很多时菜单自己滚动。 */}
-        <div className="issue-layout">
-          <nav className="system-menu" aria-label="认证系统">
-            <span className="system-menu-title">认证系统</span>
-            {hasAudience ? (
-              audienceOptions.map((audience) => {
+      <div className="page-split">
+        {/* 这一页的主轴是"哪套认证系统"：左列选它，右边为它签发、也只看它的凭据。 */}
+        <nav className="system-nav" aria-label="认证系统">
+          <h2 className="system-nav-title">认证系统</h2>
+          {hasAudience ? (
+            <ul className="system-nav-list">
+              {audienceOptions.map((audience) => {
                 const on = form.audience === audience;
                 return (
-                  <button
-                    key={audience}
-                    type="button"
-                    className={on ? "system-item active" : "system-item"}
-                    aria-current={on ? "true" : undefined}
-                    onClick={() => setForm({ ...form, audience })}
-                  >
-                    <span className="mono">{audience}</span>
-                  </button>
+                  <li key={audience}>
+                    <button
+                      type="button"
+                      className={on ? "system-nav-item active" : "system-nav-item"}
+                      aria-current={on ? "true" : undefined}
+                      onClick={() => setForm({ ...form, audience })}
+                    >
+                      <span className="mono">{audience}</span>
+                    </button>
+                  </li>
                 );
-              })
-            ) : (
-              <span className="system-menu-empty muted small">（还没有认证系统）</span>
-            )}
-          </nav>
+              })}
+            </ul>
+          ) : (
+            <p className="muted small">还没有认证系统。</p>
+          )}
+        </nav>
 
-          <form onSubmit={(event) => void submit(event)}>
-            {/* 角色是这张表单里唯一要"想一下"的选择：给它一块自己的区域，
-                大格 + 色块 + 勾选位，而不是夹在两行小 chip 里。 */}
-            <div className="role-field">
-              <div className="role-field-head">
-                <span className="role-field-title">角色</span>
-                <span className="role-field-hint">可多选</span>
+        <div className="page-split-main">
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <h2>新建访问凭证</h2>
+                <p className="muted small">
+                  {hasAudience
+                    ? `这把钥匙只对 ${form.audience} 有效。`
+                    : "先接入一个认证系统，再给它签钥匙。"}
+                </p>
               </div>
-              {peerRoles.length > 0 ? (
-                <div className="role-chips">
-                  {peerRoles.map((role) => {
-                    const on = form.picked.includes(role);
+            </div>
+
+            {!hasAudience && (
+              <p className="warn">
+                还没有可选的认证系统，先去{' '}
+                <button type="button" className="linklike" onClick={onGoSystems}>
+                  认证系统
+                </button>{' '}
+                接入一个。
+              </p>
+            )}
+
+            <form onSubmit={(event) => void submit(event)}>
+              {/* 角色是这张表单里唯一要"想一下"的选择：给它一块自己的区域，
+                  大格 + 色块 + 勾选位，而不是夹在两行小 chip 里。 */}
+              <div className="role-field">
+                <div className="role-field-head">
+                  <span className="role-field-title">角色</span>
+                  <span className="role-field-hint">可多选</span>
+                </div>
+                {peerRoles.length > 0 ? (
+                  <div className="role-chips">
+                    {peerRoles.map((role) => {
+                      const on = form.picked.includes(role);
+                      return (
+                        <button
+                          key={role}
+                          type="button"
+                          className={`role-chip role-tone-${roleTone(role)}${
+                            on ? " active" : ""
+                          }`}
+                          aria-pressed={on}
+                          onClick={() =>
+                            setForm({
+                              ...form,
+                              picked: on
+                                ? form.picked.filter((item) => item !== role)
+                                : [...form.picked, role],
+                            })
+                          }
+                        >
+                          {/* 勾选位固定宽度：选中时出现，但不推挤后面的文字。 */}
+                          <span
+                            className={on ? "role-check on" : "role-check"}
+                            aria-hidden="true"
+                          >
+                            ✓
+                          </span>
+                          {role}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="static-field muted">
+                    {form.audience ? "未登记角色" : "先选认证系统"}
+                  </div>
+                )}
+                <span className="field-hint">
+                  {peerRoles.length > 0 ? (
+                    `由 ${form.audience} 登记，只能从里面选`
+                  ) : (
+                    <>
+                      它还没登记自己能验的角色，去{' '}
+                      <button type="button" className="linklike" onClick={onGoSystems}>
+                        认证系统
+                      </button>{' '}
+                      用 <span className="mono">--roles</span> 登记一次
+                    </>
+                  )}
+                </span>
+              </div>
+
+              {/* 九个固定选项放下拉里是浪费：要选先得点开看一眼。直接摆出来。
+                  但它是**单选**，与上面的多选角色必须长得不一样 —— 用连成一条的 segmented
+                  控件（一块带分隔的横条），而不是同样一颗颗的圆 chip。 */}
+              <div className="field wide">
+                <span className="field-label">有效期</span>
+                <div className="segmented" role="radiogroup" aria-label="有效期">
+                  {TTL_PRESETS.map((preset) => {
+                    const selected = form.ttlSeconds === preset.seconds;
+                    const overCap =
+                      preset.seconds !== null && cap !== null && preset.seconds > cap;
                     return (
                       <button
-                        key={role}
+                        key={preset.label}
                         type="button"
-                        className={`role-chip role-tone-${roleTone(role)}${
-                          on ? " active" : ""
-                        }`}
-                        aria-pressed={on}
-                        onClick={() =>
-                          setForm({
-                            ...form,
-                            picked: on
-                              ? form.picked.filter((item) => item !== role)
-                              : [...form.picked, role],
-                          })
-                        }
+                        role="radio"
+                        aria-checked={selected}
+                        className={selected ? "segment active" : "segment"}
+                        disabled={overCap}
+                        title={overCap ? `超过上限 ${humanDuration(cap!)}` : undefined}
+                        onClick={() => {
+                          setTouchedTtl(true);
+                          setForm({ ...form, ttlSeconds: preset.seconds });
+                        }}
                       >
-                        {/* 勾选位固定宽度：选中时出现，但不推挤后面的文字。 */}
-                        <span
-                          className={on ? "role-check on" : "role-check"}
-                          aria-hidden="true"
-                        >
-                          ✓
-                        </span>
-                        {role}
+                        {preset.label}
                       </button>
                     );
                   })}
                 </div>
-              ) : (
-                <div className="static-field muted">
-                  {form.audience ? "未登记角色" : "先选认证系统"}
+                <span className="field-hint">
+                  {effectiveSeconds === null
+                    ? "按服务端上限"
+                    : `到期 ${formatTime(Math.floor(Date.now() / 1000) + effectiveSeconds)}`}
+                  {cap !== null && ` · 上限 ${humanDuration(cap)}（勾“应急”可放宽）`}
+                </span>
+              </div>
+              <label className="wide">
+                用途（进审计）
+                <input
+                  required
+                  value={form.purpose}
+                  placeholder="nightly disk inspection"
+                  onChange={(event) => setForm({ ...form, purpose: event.target.value })}
+                />
+              </label>
+              <div className="form-actions">
+                <label className="checkbox">
+                  <input
+                    type="checkbox"
+                    checked={form.breakGlass}
+                    onChange={(event) => setForm({ ...form, breakGlass: event.target.checked })}
+                  />
+                  应急凭据（上限更长，使用时会告警）
+                </label>
+                <button type="submit" disabled={submitting || !canSubmit}>
+                  {submitting ? "创建中…" : "创建"}
+                </button>
+              </div>
+            </form>
+          </section>
+
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <h2>已发放凭据</h2>
+                <p className="muted small">
+                  {form.audience
+                    ? `只统计 ${form.audience} 这一套系统。`
+                    : "在左边选一套认证系统。"}
+                </p>
+              </div>
+              {selectedStats ? (
+                <div className="stat-row">
+                  <span className="stat">
+                    <b>{selectedStats.total}</b> 签发
+                  </span>
+                  <span className="stat ok">
+                    <b>{selectedStats.valid}</b> 有效
+                  </span>
+                  <span className="stat">
+                    <b>{selectedStats.expired}</b> 过期
+                  </span>
+                  <span className="stat crit">
+                    <b>{selectedStats.revoked}</b> 已撤销
+                  </span>
                 </div>
-              )}
-              <span className="field-hint">
-                {peerRoles.length > 0 ? (
-                  `由 ${form.audience} 登记，只能从里面选`
-                ) : (
-                  <>
-                    它还没登记自己能验的角色，去{' '}
-                    <button type="button" className="linklike" onClick={onGoSystems}>
-                      认证系统
-                    </button>{' '}
-                    用 <span className="mono">--roles</span> 登记一次
-                  </>
-                )}
-              </span>
+              ) : null}
             </div>
 
-          {/* 九个固定选项放下拉里是浪费：要选先得点开看一眼。直接摆出来。
-              但它是**单选**，与上面的多选角色必须长得不一样 —— 用连成一条的 segmented
-              控件（一块带分隔的横条），而不是同样一颗颗的圆 chip。 */}
-          <div className="field wide">
-            <span className="field-label">有效期</span>
-            <div className="segmented" role="radiogroup" aria-label="有效期">
-              {TTL_PRESETS.map((preset) => {
-                const selected = form.ttlSeconds === preset.seconds;
-                const overCap =
-                  preset.seconds !== null && cap !== null && preset.seconds > cap;
-                return (
-                  <button
-                    key={preset.label}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    className={selected ? "segment active" : "segment"}
-                    disabled={overCap}
-                    title={overCap ? `超过上限 ${humanDuration(cap!)}` : undefined}
-                    onClick={() => {
-                      setTouchedTtl(true);
-                      setForm({ ...form, ttlSeconds: preset.seconds });
-                    }}
-                  >
-                    {preset.label}
-                  </button>
-                );
-              })}
-            </div>
-            <span className="field-hint">
-              {effectiveSeconds === null
-                ? "按服务端上限"
-                : `到期 ${formatTime(Math.floor(Date.now() / 1000) + effectiveSeconds)}`}
-              {cap !== null && ` · 上限 ${humanDuration(cap)}（勾“应急”可放宽）`}
-            </span>
-          </div>
-          <label className="wide">
-            用途（进审计）
-            <input
-              required
-              value={form.purpose}
-              placeholder="nightly disk inspection"
-              onChange={(event) => setForm({ ...form, purpose: event.target.value })}
-            />
-          </label>
-          <div className="form-actions">
-            <label className="checkbox">
-              <input
-                type="checkbox"
-                checked={form.breakGlass}
-                onChange={(event) => setForm({ ...form, breakGlass: event.target.checked })}
-              />
-              应急凭据（上限更长，使用时会告警）
-            </label>
-            <button type="submit" disabled={submitting || !canSubmit}>
-              {submitting ? "创建中…" : "创建"}
-            </button>
-          </div>
-          </form>
-        </div>
-      </section>
-
-      <section className="panel">
-        <div className="panel-head">
-          <h2>已发放凭据</h2>
-          {items.length > 0 ? (
-            <span className="muted">
-              {items.length} 条 · {audienceGroups.length} 个认证系统
-            </span>
-          ) : null}
-        </div>
-        {items.length === 0 ? (
-          <p className="muted empty">{loading ? "加载中…" : "还没有凭据。"}</p>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>认证系统</th>
-                <th className="num">签发</th>
-                <th className="num">有效</th>
-                <th className="num">过期</th>
-                <th className="num">已撤销</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {audienceGroups.map((group) => {
-                const open = openAudiences.includes(group.audience);
-                return (
-                  <Fragment key={group.audience}>
-                    <tr>
-                      <td>
-                        <button
-                          type="button"
-                          className="linklike group-toggle"
-                          aria-expanded={open}
-                          onClick={() => toggleAudience(group.audience)}
-                        >
-                          <span aria-hidden="true">{open ? "▾" : "▸"}</span>
-                          <span className="mono">{group.audience}</span>
-                        </button>
-                      </td>
-                      <td className="num mono">{group.total}</td>
-                      <td className="num mono">{group.counts.valid}</td>
-                      <td className="num mono">{group.counts.expired}</td>
-                      <td className="num mono">{group.counts.revoked}</td>
-                      <td className="right">
-                        <button
-                          type="button"
-                          className="ghost"
-                          onClick={() => toggleAudience(group.audience)}
-                        >
-                          {open ? "收起" : "明细"}
-                        </button>
-                      </td>
-                    </tr>
-                    {open ? (
-                      <tr>
-                        <td className="detail-cell" colSpan={6}>
-                          <table className="detail-table">
-                            <thead>
-                              <tr>
-                                <th>用途</th>
-                                <th>角色</th>
-                                <th>到期</th>
-                                <th>状态</th>
-                                <th />
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {group.items.map((item) => {
-                                const state = stateOf(item);
-                                return (
-                                  <tr key={item.credential_id}>
-                                    <td className="small">
-                                      {item.purpose}
-                                      <div className="muted small mono">
-                                        {item.owner} · {item.credential_id}
-                                      </div>
-                                    </td>
-                                    <td className="mono small">
-                                      {item.roles.join(", ") || "—"}
-                                    </td>
-                                    <td className="mono small">{formatTime(item.expires_at)}</td>
-                                    <td>
-                                      <span className={state.className}>{state.label}</span>
-                                    </td>
-                                    <td className="right">
-                                      <div className="row-actions">
-                                        {pushableAudiences.has(item.audience) && (
-                                          <button
-                                            type="button"
-                                            className="ghost"
-                                            disabled={item.revoked_at !== null}
-                                            title="把同一摘要再推给这个认证系统（推送失败后补）"
-                                            onClick={() => void redeliver(item.credential_id)}
-                                          >
-                                            重推
-                                          </button>
-                                        )}
-                                        <button
-                                          type="button"
-                                          className="danger"
-                                          disabled={item.revoked_at !== null}
-                                          onClick={() => void revoke(item.credential_id)}
-                                        >
-                                          撤销
-                                        </button>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
+            {!form.audience ? (
+              <p className="muted empty">先在左边选一套认证系统。</p>
+            ) : selectedItems.length === 0 ? (
+              <p className="muted empty">
+                {loading ? "加载中…" : "这套系统还没有签发过凭据。"}
+              </p>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>用途</th>
+                    <th>角色</th>
+                    <th>到期</th>
+                    <th>状态</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedItems.map((item) => {
+                    const state = stateOf(item);
+                    return (
+                      <tr key={item.credential_id}>
+                        <td className="small">
+                          {item.purpose}
+                          <div className="muted small mono">
+                            {item.owner} · {item.credential_id}
+                          </div>
+                        </td>
+                        <td className="mono small">{item.roles.join(", ") || "—"}</td>
+                        <td className="mono small">{formatTime(item.expires_at)}</td>
+                        <td>
+                          <span className={state.className}>{state.label}</span>
+                        </td>
+                        <td className="right">
+                          <div className="row-actions">
+                            {pushableAudiences.has(item.audience) && (
+                              <button
+                                type="button"
+                                className="ghost"
+                                disabled={item.revoked_at !== null}
+                                title="把同一摘要再推给这个认证系统（推送失败后补）"
+                                onClick={() => void redeliver(item.credential_id)}
+                              >
+                                重推
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className="danger"
+                              disabled={item.revoked_at !== null}
+                              onClick={() => void revoke(item.credential_id)}
+                            >
+                              撤销
+                            </button>
+                          </div>
                         </td>
                       </tr>
-                    ) : null}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </section>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </section>
+        </div>
+      </div>
     </>
   );
 }
