@@ -1,5 +1,15 @@
 import { ApiError } from "./api";
 
+/**
+ * 版本号统一成 `vX.Y.Z…`：构建期注入的是发布 tag（自带 `v`），服务端返回纯 semver。
+ * 已带 `v` 就原样、否则补一个 —— 免得拼出 `vv0.5.0-alpha`。
+ */
+export function formatVersion(raw: string | null | undefined): string {
+  const value = (raw ?? "").trim();
+  if (value === "") return "—";
+  return value.startsWith("v") ? value : `v${value}`;
+}
+
 /** 把接口错误翻成页面能看懂的一句话。 */
 export function describe(error: unknown): string {
   if (error instanceof ApiError) {

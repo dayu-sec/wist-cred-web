@@ -77,22 +77,21 @@ body {
   gap: 12px;
 }
 
-/* 三个版本号：页面 / 凭据服务 / 部署栈。
-   名字压暗、版本号提亮 —— 一眼能分出「哪一项是什么、是哪版」；窄屏自动换行。 */
+/* 三个版本号（左栏底部）：一行一项，名字在左、版本靠右对齐。 */
 .version {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 14px;
+  flex-direction: column;
+  gap: 3px;
   font-family: var(--mono);
   font-size: 11px;
   color: var(--muted);
 }
 
 .version-item {
-  display: inline-flex;
+  display: flex;
   align-items: baseline;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 8px;
   white-space: nowrap;
 }
 
@@ -686,9 +685,11 @@ tr:last-child td {
    一个认证系统就是这一页的上下文，两栏一起换。 */
 .page-split {
   display: grid;
-  grid-template-columns: 190px minmax(0, 1fr);
+  grid-template-columns: 200px minmax(0, 1fr);
   gap: 20px;
-  align-items: start;
+  /* 左栏拉满整行高：系统少的时候它仍然是一根完整的侧栏，
+     底部能放东西（版本），而不是一张在半空截断的小卡片。 */
+  align-items: stretch;
   margin-top: 22px;
 }
 
@@ -704,10 +705,38 @@ tr:last-child td {
 }
 
 .system-nav {
+  display: flex;
+  flex-direction: column;
   padding: 16px 14px 14px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 10px;
+}
+
+/* 底部：新建入口 + 三个版本号。`margin-top: auto` 把它们按到这一列的底部。 */
+.system-nav-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.system-nav-add {
+  padding: 7px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.system-nav-add:hover {
+  border-color: var(--accent);
+  color: var(--text);
 }
 
 .system-nav-title {
@@ -782,28 +811,6 @@ tr:last-child td {
   color: var(--danger);
 }
 
-@media (max-width: 760px) {
-  .page-split {
-    grid-template-columns: 1fr;
-    gap: 14px;
-  }
-
-  .system-nav-list {
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-
-  .system-nav-item {
-    width: auto;
-    border-left: none;
-    border-bottom: 2px solid transparent;
-  }
-
-  .system-nav-item.active {
-    border-left: none;
-    border-bottom-color: var(--accent);
-  }
-}
 
 /* 角色区：这块是表单里唯一需要权衡的选择，给它自己的区域 ——
    带边框的浅底、放大一档的格子、每格一个色系和勾选位。 */

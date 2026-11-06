@@ -11,14 +11,6 @@ import { describe } from "./ui";
 
 const VERSION = import.meta.env.VITE_APP_VERSION ?? "";
 
-/** 版本号统一成 `vX.Y.Z`：构建期注入的是发布 tag（自带 `v`），服务端返回纯 semver。
- *  已带 `v` 就原样、否则补一个 —— 免得拼出 `vv0.4.0-alpha`（这一处曾经就是）。 */
-function formatVersion(raw: string | null | undefined): string {
-  const value = (raw ?? "").trim();
-  if (value === "") return "—";
-  return value.startsWith("v") ? value : `v${value}`;
-}
-
 /** 两个页面。用 hash 路由，刷新和分享都能落回同一页（不引 react-router）。 */
 type Tab = "credentials" | "systems";
 
@@ -172,20 +164,6 @@ export default function App() {
           </div>
         </div>
         <div className="topbar-right">
-          <span className="version" aria-label="版本信息">
-            <span className="version-item">
-              <span className="version-name">wist-cred-web</span>
-              {formatVersion(VERSION)}
-            </span>
-            <span className="version-item">
-              <span className="version-name">wist-cred</span>
-              {formatVersion(serviceVersion?.version)}
-            </span>
-            <span className="version-item">
-              <span className="version-name">wist-cred-stack</span>
-              {formatVersion(serviceVersion?.stackVersion)}
-            </span>
-          </span>
           <button
             type="button"
             className="ghost"
@@ -233,6 +211,11 @@ export default function App() {
         />
       ) : (
         <Credentials
+          versions={{
+            web: VERSION,
+            cred: serviceVersion?.version ?? null,
+            stack: serviceVersion?.stackVersion ?? null,
+          }}
           items={items}
           loading={loading}
           boarding={boarding}

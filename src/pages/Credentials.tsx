@@ -9,7 +9,7 @@ import type {
   IssuePolicy,
   OnboardingState,
 } from "../api";
-import { copyText, describe, formatTime, humanDuration } from "../ui";
+import { copyText, describe, formatTime, formatVersion, humanDuration } from "../ui";
 
 interface FormState {
   purpose: string;
@@ -65,6 +65,8 @@ function largestWithin(cap: number): number | null {
 }
 
 interface Props {
+  /** 三个版本号（页面 / 凭据服务 / 部署栈）：放在左栏底部，跟着这一列常驻。 */
+  versions: { web: string; cred: string | null; stack: string | null };
   items: Credential[];
   loading: boolean;
   boarding: OnboardingState | null;
@@ -97,6 +99,7 @@ function stateOf(item: Credential): {
  * 而能认它的系统必须是已经接入过的。服务端也会校验（`audience_not_configured`）。
  */
 export default function Credentials({
+  versions,
   items,
   loading,
   boarding,
@@ -319,6 +322,25 @@ export default function Credentials({
           ) : (
             <p className="muted small">还没有认证系统。</p>
           )}
+          <div className="system-nav-foot">
+            <button type="button" className="system-nav-add" onClick={onGoSystems}>
+              ＋ 新建认证系统
+            </button>
+            <div className="version" aria-label="版本信息">
+              <span className="version-item">
+                <span className="version-name">wist-cred-web</span>
+                {formatVersion(versions.web)}
+              </span>
+              <span className="version-item">
+                <span className="version-name">wist-cred</span>
+                {formatVersion(versions.cred)}
+              </span>
+              <span className="version-item">
+                <span className="version-name">wist-cred-stack</span>
+                {formatVersion(versions.stack)}
+              </span>
+            </div>
+          </div>
         </nav>
 
         <div className="page-split-main">
