@@ -610,6 +610,308 @@ tr:last-child td {
   text-align: right;
 }
 
+/* 「新建访问凭证」两栏：左边是认证系统菜单，右边是这台的签发表单。
+   系统决定「能填什么」（角色表来自它的登记），所以它是导航，不是表单字段。 */
+.issue-layout {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 20px;
+  /* 两栏拉齐：左栏的竖线因此和表单一样高，而不是在菜单最后一项处断掉。 */
+  align-items: stretch;
+  margin-top: 4px;
+}
+
+.system-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* 系统多时菜单自己滚动，而不是把页面拉长。 */
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 10px;
+  border-right: 1px solid var(--border);
+}
+
+.system-menu-title {
+  padding: 0 10px 6px;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.system-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.system-item:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+/* 当前项：底色 + 左侧一条 accent —— 与顶部 tab 的「当前位置」同一套语言。 */
+.system-item.active {
+  background: var(--panel-2);
+  box-shadow: inset 2px 0 0 var(--accent);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.system-menu-empty {
+  padding: 6px 10px;
+}
+
+@media (max-width: 760px) {
+  .issue-layout {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .system-menu {
+    flex-direction: row;
+    flex-wrap: wrap;
+    max-height: none;
+    padding-right: 0;
+    padding-bottom: 10px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .system-menu-title {
+    width: 100%;
+    padding: 0 0 6px;
+  }
+
+  .system-item {
+    width: auto;
+  }
+}
+
+/* 角色区：这块是表单里唯一需要权衡的选择，给它自己的区域 ——
+   带边框的浅底、放大一档的格子、每格一个色系和勾选位。 */
+.role-field {
+  margin-top: 12px;
+  padding: 14px 16px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+
+.role-field-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.role-field-title {
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.role-field-hint {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.role-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 8px;
+}
+
+/* 未选中也带色底（13%）+ 同色描边；选中加浓到 40% + 白字 + 勾。
+   比普通 chip 大一圈：一行放不下会自动换行，不缩字。 */
+.role-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 18px;
+  border: 1px solid var(--role-line);
+  border-radius: 12px;
+  background: var(--role-tint);
+  color: var(--role);
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.role-chip:hover:not(.active) {
+  border-color: var(--role);
+  background: var(--role-soft);
+  color: var(--text);
+}
+
+.role-chip.active {
+  border-color: var(--role);
+  background: var(--role-soft);
+  box-shadow: inset 0 0 0 1px var(--role);
+  color: #fff;
+  font-weight: 700;
+}
+
+/* 勾选位固定宽度：出现/消失都不推挤角色名。 */
+.role-check {
+  width: 12px;
+  opacity: 0;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.role-check.on {
+  opacity: 1;
+}
+
+.role-tone-0 {
+  --role: #5aa9e6;
+  --role-tint: rgba(90, 169, 230, 0.13);
+  --role-soft: rgba(90, 169, 230, 0.4);
+  --role-line: rgba(90, 169, 230, 0.55);
+}
+
+.role-tone-1 {
+  --role: #a78bfa;
+  --role-tint: rgba(167, 139, 250, 0.13);
+  --role-soft: rgba(167, 139, 250, 0.4);
+  --role-line: rgba(167, 139, 250, 0.55);
+}
+
+.role-tone-2 {
+  --role: #e0b15c;
+  --role-tint: rgba(224, 177, 92, 0.13);
+  --role-soft: rgba(224, 177, 92, 0.4);
+  --role-line: rgba(224, 177, 92, 0.55);
+}
+
+.role-tone-3 {
+  --role: #56c596;
+  --role-tint: rgba(86, 197, 150, 0.13);
+  --role-soft: rgba(86, 197, 150, 0.4);
+  --role-line: rgba(86, 197, 150, 0.55);
+}
+
+.role-tone-4 {
+  --role: #e58a5c;
+  --role-tint: rgba(229, 138, 92, 0.13);
+  --role-soft: rgba(229, 138, 92, 0.4);
+  --role-line: rgba(229, 138, 92, 0.55);
+}
+
+.role-tone-5 {
+  --role: #4fc3c8;
+  --role-tint: rgba(79, 195, 200, 0.13);
+  --role-soft: rgba(79, 195, 200, 0.4);
+  --role-line: rgba(79, 195, 200, 0.55);
+}
+
+/* 有效期是**单选**：连成一条的 segmented 控件（一块带分隔的横条）。
+   与上面多选角色的圆 chip 形成形状差异 —— 两组控件不再"长得一样、分不清谁是谁"。 */
+.segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  /* 按内容收窄：它是"一排格子"，不该像输入框那样拉满整行。 */
+  align-self: flex-start;
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+
+.segment {
+  padding: 6px 12px;
+  border: none;
+  border-right: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.segment:last-child {
+  border-right: none;
+}
+
+.segment:hover:not(:disabled):not(.active) {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+
+/* 当前项：同一块里的实心格（与 chip 的描边+淡底区分开，读起来是"选中的那一格"）。 */
+.segment.active {
+  background: #16324f;
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.segment:disabled {
+  color: var(--muted);
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* 分系统统计：数字右对齐、等宽，列与列能对着看。 */
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 系统名是"展开明细"的开关，不是链接：不加下划线，hover 提亮。 */
+.group-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.group-toggle:hover {
+  color: var(--accent);
+}
+
+/* 展开的明细：缩进到系统名下面，视觉上属于上一行；表头比主表更轻。 */
+.detail-cell {
+  padding: 0 10px 10px 30px;
+}
+
+.detail-table {
+  margin-top: 0;
+  font-size: 12.5px;
+}
+
+.detail-table th {
+  font-size: 10.5px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.detail-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #17233a;
+}
+
 /* 行内动作：撤销 / 重推 并排，右对齐。 */
 .row-actions {
   display: flex;
