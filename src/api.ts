@@ -83,6 +83,17 @@ export class ApiError extends Error {
   readonly status: number;
   /** 解析后的响应体：少数错误会带上额外内容（例如签发成功但推送失败时的 `credential`）。 */
   readonly payload: unknown;
+  /**
+   * 服务端说这件事**过一会儿重试有没有意义**（`ProtocolError.retryable`）。
+   *
+   * `null` = 旧版 cred 没给这个字段（按下文文案保守处理）。
+   * 它决定页面给「重试」按钮还是给「去修配置」的指引 —— 不要靠码猜。
+   */
+  readonly retryable: boolean | null;
+  /** 结构化字段（`peer` / `upstream_status` / `upstream_code` …）。 */
+  readonly fields: Record<string, string> | null;
+  /** 与容器日志对账用的 id（响应体 `correlation_id`，同时也在 `x-request-id` 头里）。 */
+  readonly correlationId: string | null;
 
   constructor(code: string, message: string, status: number, payload?: unknown) {
     super(message);
@@ -90,6 +101,13 @@ export class ApiError extends Error {
     this.code = code;
     this.status = status;
     this.payload = payload;
+
+    const error = (payload as {
+      error?: { retryable?: boolean; fields?: Record<string, string>; correlation_id?: string };
+    } | null)?.error;
+    this.retryable = typeof error?.retryable === "boolean" ? error.retryable : null;
+    this.fields = error?.fields ?? null;
+    this.correlationId = error?.correlation_id ?? null;
   }
 }
 

@@ -41,6 +41,71 @@ export function describe(error: unknown): string {
         { msg: error.message },
       );
     }
+    if (error.code === "verifier_rejected") {
+      // 对端**收到并拒绝**：4xx 是配置/契约问题（重试无用），5xx 才是暂时性。
+      const peer = error.fields?.peer ?? t("对方", "the verifier");
+      const upstream = error.fields?.upstream_code;
+      if (error.retryable === false) {
+        const hint =
+          upstream === "audience_mismatch"
+            ? t(
+                "两边受众名不一致 —— 把认证系统名和对方配置里的 audience 改成同一个，再重新登记。",
+                "The audience names disagree — make the auth-system name and the verifier's audience the same, then re-enroll.",
+              )
+            : t(
+                "这是配置层面的拒绝，重试不会成功。",
+                "This is a configuration-level rejection; retrying will not help.",
+              );
+        return t(
+          "{peer} 拒绝了这条凭据（{code}）：{msg}。{hint}",
+          "{peer} rejected this credential ({code}): {msg}. {hint}",
+          { peer, code: upstream ?? "—", msg: error.message, hint },
+        );
+      }
+      return t(
+        "{peer} 暂时没能接受（{msg}）：这不是凭据本身的问题，稍后重试即可。",
+        "{peer} could not accept it for now ({msg}): the credential is fine — retry later.",
+        { peer, msg: error.message },
+      );
+    }
+    if (error.code === "verifier_unreachable") {
+      const peer = error.fields?.peer ?? t("认证系统", "the verifier");
+      return t(
+        "连不上 {peer}（{msg}）：确认对端在线、地址与证书有效后再重试。",
+        "Could not reach {peer} ({msg}): check that it is up, and that the endpoint and certificate are valid, then retry.",
+        { peer, msg: error.message },
+      );
+    }
+    if (error.code === "enrollment_disabled") {
+      // 没配 CA / 签发材料：部署方的配置问题，重试永远不会成功。
+      return t(
+        "这个部署没配签发所需的 CA（{msg}）：让部署方补上配置后再试，重试不会自己变好。",
+        "This deployment is missing the CA it needs to enroll ({msg}): ask the operator to fix the configuration; retrying will not help.",
+        { msg: error.message },
+      );
+    }
+    if (error.code === "push_internal") {
+      // 本地就失败了（签名 / 序列化）：确定性故障，重试不会自己变好。
+      if (error.retryable === false) {
+        return t(
+          "凭据已存下，但推送在本地就没成功（{msg}）：这是服务端自身的问题，重试不会变好 —— 让运维看服务端日志（{id}）。",
+          "The credential was stored but the push failed locally ({msg}): this is a server-side fault — retrying will not help. Ask the operator to check the service log ({id}).",
+          { msg: error.message, id: error.correlationId ?? "—" },
+        );
+      }
+      return t(
+        "凭据已存下，但推送在本地就没成功（{msg}）：稍后重试即可。",
+        "The credential was stored but the push failed locally ({msg}): retry later.",
+        { msg: error.message },
+      );
+    }
+    if (error.code === "credential_delivery_pending") {
+      // 旧版 cred（< 0.8.2）：它只给一句“retry later”，且可能根本没回令牌。
+      return t(
+        "凭据已签发，但没送达对端（旧版服务端）：如果上面没有令牌，这条凭据的明文已经丢失，只能撤销后重新签发。",
+        "The credential was issued but not delivered (older server). If no token is shown above, its plaintext is lost — revoke it and issue a new one.",
+      );
+    }
     return `${error.code}: ${error.message}`;
   }
   return error instanceof Error ? error.message : String(error);

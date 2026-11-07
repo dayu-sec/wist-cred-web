@@ -79,6 +79,19 @@ interface Props {
 
 type CredentialState = "valid" | "expired" | "revoked";
 
+/** 列表上的动作失败：文案 + 可选重试 + 与容器日志对账的 id。 */
+interface ListError {
+  text: string;
+  /** `null` = 服务端说不可重试（或旧版没给 `retryable`）—— 此时给按钮是在骗人。 */
+  retry: (() => void) | null;
+  correlationId: string | null;
+}
+
+/** 错误的对账 id（新版 cred 在响应体里给 `correlation_id`）。 */
+function correlationOf(err: unknown): string | null {
+  return err instanceof ApiError ? err.correlationId : null;
+}
+
 /** 状态判定只有一处：列表徽标与上面的分系统统计都用它，别让两处口径漂开。 */
 function stateOf(item: Credential): {
   key: CredentialState;
@@ -131,6 +144,8 @@ export default function Credentials({
   const [notice, setNotice] = useState<string | null>(null);
   /** 签发/撤销失败的错误：留在表单里，**不交给 App** —— 那边刷新成功会把它清掉。 */
   const [formError, setFormError] = useState<string | null>(null);
+  /** 列表上的动作（重推 / 撤销）失败：显示在它发生的那张卡片里，而不是上面的表单。 */
+  const [listError, setListError] = useState<ListError | null>(null);
   /** 令牌块的补充说明（例如"已签发但没送达"）。 */
   const [createdNote, setCreatedNote] = useState<string | null>(null);
 
@@ -213,28 +228,30 @@ export default function Credentials({
       setForm((prev) => ({ ...prev, purpose: "" }));
       onReload();
     } catch (err) {
-      // 推送失败（`credential_delivery_pending`）：凭据已经落库、**明文只在这一刻存在**，
-      // 服务端把 `credential` + `token` 放在错误体里 → 照样把令牌显示出来，
-      // 另加一句"没送达、可重推"。否则这条凭据永远没法用。
-      if (err instanceof ApiError && err.code === "credential_delivery_pending") {
-        const payload = err.payload as { credential?: CreatedCredential } | null;
-        if (payload?.credential?.token) {
-          setCreated(payload.credential);
+      // 推送失败：凭据已经落库、**明文只在这一刻存在**。服务端把 `credential` + `token`
+      // 放在错误体里（0.8.2 的 `verifier_rejected` / `verifier_unreachable` 与 0.8.1 的
+      // `credential_delivery_pending` 都带）→ 照样把令牌显示出来，另附一句为什么没送达。
+      if (err instanceof ApiError) {
+        const credential = (err.payload as { credential?: CreatedCredential } | null)?.credential;
+        if (credential?.token) {
+          setCreated(credential);
           setCreatedNote(
             t(
-              "已签发，但 {name} 没有确认收到（推送失败）。令牌仍然有效：在「认证系统」确认它可联通后，点列表里这条的「重推」即可送达。",
-              "Issued, but {name} has not accepted it yet (delivery failed). The token is still valid — once it is reachable again, use “Redeliver” on this row.",
-              { name: payload.credential.audience },
+              "令牌已签发，但没送达。{why} 令牌仍然有效 —— 对端恢复后点列表里这条的「重推」。",
+              "The token was issued but not delivered. {why} It stays valid — use “Redeliver” on this row once the verifier is reachable again.",
+              { why: describe(err) },
             ),
           );
           setCopied(false);
           setForm((prev) => ({ ...prev, purpose: "" }));
           setFormError(null);
+          setNotice(null);
           onReload();
           return;
         }
       }
       setFormError(describe(err));
+      setNotice(null);
     } finally {
       setSubmitting(false);
     }
@@ -254,21 +271,30 @@ export default function Credentials({
     }
     try {
       await revokeCredential(credentialId);
+      setListError(null);
       onReload();
     } catch (err) {
-      setFormError(describe(err));
+      setListError({ text: describe(err), retry: null, correlationId: correlationOf(err) });
     }
   }
 
   async function redeliver(credentialId: string) {
     try {
       const result = await redeliverCredential(credentialId);
+      setListError(null);
       setNotice(
         t("已重新投递到 {name}", "Redelivered to {name}", { name: result.audience }),
       );
       onReload();
     } catch (err) {
-      setFormError(describe(err));
+      setNotice(null);
+      // 可重试的错误给一个「重试」按钮（不可重试时给了也没用 —— 那是在骗人）。
+      const retryable = err instanceof ApiError ? err.retryable !== false : true;
+      setListError({
+        text: describe(err),
+        retry: retryable ? () => void redeliver(credentialId) : null,
+        correlationId: correlationOf(err),
+      });
     }
   }
 
@@ -554,6 +580,35 @@ export default function Credentials({
                 </div>
               ) : null}
             </div>
+
+            {listError && (
+              <div className="banner error">
+                <div className="token-head">
+                  <strong>{listError.text}</strong>
+                  <div className="token-actions">
+                    {listError.retry && (
+                      <button type="button" className="ghost" onClick={listError.retry}>
+                        {t("重试", "Retry")}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={() => setListError(null)}
+                    >
+                      {t("知道了", "Dismiss")}
+                    </button>
+                  </div>
+                </div>
+                {listError.correlationId && (
+                  <span className="muted small mono">
+                    {t("请求 id {id}（可用它对日志）", "request id {id} (match it in the logs)", {
+                      id: listError.correlationId,
+                    })}
+                  </span>
+                )}
+              </div>
+            )}
 
             {!form.audience ? (
               <p className="muted empty">{t("先在左边选一套认证系统。", "Pick an auth system on the left.")}</p>
