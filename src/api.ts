@@ -81,12 +81,15 @@ export async function getServiceVersion(): Promise<ServiceVersion> {
 export class ApiError extends Error {
   readonly code: string;
   readonly status: number;
+  /** 解析后的响应体：少数错误会带上额外内容（例如签发成功但推送失败时的 `credential`）。 */
+  readonly payload: unknown;
 
-  constructor(code: string, message: string, status: number) {
+  constructor(code: string, message: string, status: number, payload?: unknown) {
     super(message);
     this.name = "ApiError";
     this.code = code;
     this.status = status;
+    this.payload = payload;
   }
 }
 
@@ -120,7 +123,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     if (response.status === 401 && code === "invalid_admin_bearer_token") {
       clearPassword();
     }
-    throw new ApiError(code, error?.message ?? `HTTP ${response.status}`, response.status);
+    throw new ApiError(code, error?.message ?? `HTTP ${response.status}`, response.status, body);
   }
 
   return body as T;

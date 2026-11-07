@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 import { createPeer, deletePeer, mintOnboardingLink, setPeerEndpoint } from "../api";
 import type { Credential, OnboardingLink, OnboardingPeer, OnboardingState } from "../api";
 import { ConfirmDialog } from "../ConfirmDialog";
+import { t } from "../i18n";
 import { copyText, describe, ticketFromPath } from "../ui";
 
 interface Props {
@@ -26,11 +27,11 @@ function healthOf(peer: OnboardingPeer): { label: string; className: string } {
   // 没有收数地址就不是“未探测”，而是一个**不会自愈的错误**：探针会直接跳过它，
   // 凭据签发了也送不达。所以用红色说出来，不能和“刚建好、等第一次心跳”混在一起。
   if (peer.health === "no_endpoint" || !peer.endpoint) {
-    return { label: "缺收数地址", className: "state revoked" };
+    return { label: t("缺收数地址", "No endpoint"), className: "state revoked" };
   }
-  if (peer.health === "up") return { label: "可联通", className: "state active" };
-  if (peer.health === "down") return { label: "不通", className: "state revoked" };
-  return { label: "未探测", className: "state expired" };
+  if (peer.health === "up") return { label: t("可联通", "Reachable"), className: "state active" };
+  if (peer.health === "down") return { label: t("不通", "Unreachable"), className: "state revoked" };
+  return { label: t("未探测", "Not probed"), className: "state expired" };
 }
 
 /**
@@ -166,57 +167,48 @@ export default function Systems({
     <>
       <section className="panel">
         <div className="panel-head">
-          <div>
-            <h2>新建认证系统</h2>
-            <p className="muted small">
-              一个系统只需要一个名称。收数地址不在这一步问 —— 自注册接入时由对方自己报上来，
-              传统接入的在下面列表里补。
-            </p>
-          </div>
+          <h2>{t("新建认证系统", "New auth system")}</h2>
         </div>
 
         {boarding && !boarding.enabled && (
           <p className="warn">
-            本部署缺少签发 CA 或客户端 CA（<span className="mono">[onboarding]</span>），
-            新建会失败。先跑一次 <span className="mono">gops sys localize</span>。
+            {t("本部署缺少签发 CA 或客户端 CA（", "This deployment is missing the signing or client CA (")}
+            <span className="mono">[onboarding]</span>{t("），新建会失败。先跑一次 ", "), so creating will fail. Run ")}
+            <span className="mono">gops sys localize</span>{t("。", " first.")}
           </p>
         )}
 
         <form onSubmit={(event) => void submit(event)}>
           <div className="sentence-row">
-            <span className="sentence-word">名称</span>
+            <span className="sentence-word">{t("名称", "Name")}</span>
             <input
               required
               className="sentence-input"
               value={form.name}
               placeholder="wist-ingest"
               pattern="[a-z0-9]([a-z0-9-]*[a-z0-9])?"
-              title="小写字母、数字、连字符；不能以连字符开头或结尾"
+              title={t(
+                "小写字母、数字、连字符；不能以连字符开头或结尾",
+                "Lowercase letters, digits and hyphens; must not start or end with a hyphen",
+              )}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
             />
             <button type="submit" disabled={submitting}>
-              {submitting ? "创建中…" : "创建并生成接入令牌"}
+              {submitting ? t("创建中…", "Creating…") : t("创建并生成接入令牌", "Create and issue token")}
             </button>
           </div>
-          <p className="field-hint sentence-hint">
-            名称同时是凭证的受众与证书 SAN。收数地址随时可在下面「已接入」列表里点开那一行改
-            （下一轮心跳生效）；没有地址的系统用传统 join.sh 接入会被拒。
-          </p>
         </form>
       </section>
 
       <section className="panel">
         <div className="panel-head">
           <div>
-            <h2>已接入</h2>
-            <p className="muted small">
-              心跳每 {boarding?.heartbeat_seconds ?? "—"} 秒一次，用 cred 自己的客户端证书探。
-            </p>
+            <h2>{t("已接入", "Enrolled")}</h2>
           </div>
           <div className="head-actions">
-            <span className="muted small">{peers.length} 个</span>
+            <span className="muted small">{t("{n} 个", "{n}", { n: peers.length })}</span>
             <button type="button" className="ghost" onClick={onGoCredentials}>
-              去签发凭证 →
+              {t("去签发凭证 →", "Issue a credential →")}
             </button>
           </div>
         </div>
@@ -225,12 +217,12 @@ export default function Systems({
 
         {boarding && !boarding.push_enabled && (
           <p className="warn">
-            没有配置 <span className="mono">[push]</span>：凭据不会被推送，也没有心跳。
+            {t("没有配置 ", "No ")}<span className="mono">[push]</span>{t("：凭据不会被推送，也没有心跳。", " configured: credentials are not pushed and there is no heartbeat.")}
           </p>
         )}
 
         {peers.length === 0 ? (
-          <p className="muted empty">还没有认证系统。上面建一个。</p>
+          <p className="muted empty">{t("还没有认证系统。上面建一个。", "No auth systems yet. Create one above.")}</p>
         ) : (
           <ul className="peer-list">
             {peers.map((peer) => {
@@ -241,7 +233,7 @@ export default function Systems({
                   <div className="peer-id">
                     <span className="peer-name mono">{peer.name}</span>
                     <span className="peer-host mono muted">
-                      {peer.host ?? "主机名未上报"}
+                      {peer.host ?? t("主机名未上报", "No hostname reported")}
                     </span>
                   </div>
 
@@ -258,7 +250,10 @@ export default function Systems({
                         <input
                           autoFocus
                           value={draft}
-                          placeholder="https://host:port/path（留空 = 手工分发）"
+                          placeholder={t(
+                            "https://host:port/path（留空 = 手工分发）",
+                            "https://host:port/path (empty = hand out manually)",
+                          )}
                           onChange={(event) => setDraft(event.target.value)}
                           onKeyDown={(event) => {
                             if (event.key === "Enter") void saveEndpoint(peer.name);
@@ -270,30 +265,35 @@ export default function Systems({
                           disabled={saving}
                           onClick={() => void saveEndpoint(peer.name)}
                         >
-                          {saving ? "保存中…" : "保存"}
+                          {saving ? t("保存中…", "Saving…") : t("保存", "Save")}
                         </button>
                         <button type="button" className="ghost" onClick={() => setEditing(null)}>
-                          取消
+                          {t("取消", "Cancel")}
                         </button>
                       </div>
                     ) : (
                       <button
                         type="button"
                         className="linklike peer-endpoint"
-                        title={peer.endpoint ?? "点击设置收数地址"}
+                        title={peer.endpoint ?? t("点击设置收数地址", "Click to set the endpoint")}
                         onClick={() => startEdit(peer)}
                       >
                         {peer.endpoint ? (
                           <span className="mono">{peer.endpoint}</span>
                         ) : (
-                          <span className="muted">缺收数地址 — 点击补上（不补就永远收不到推送）</span>
+                          <span className="muted">
+                            {t(
+                              "缺收数地址 — 点击补上（不补就永远收不到推送）",
+                              "No endpoint — click to add one (without it nothing is ever pushed)",
+                            )}
+                          </span>
                         )}
                       </button>
                     )}
                     <span className="peer-roles mono muted">
                       {peer.roles.length > 0
                         ? peer.roles.join(" · ")
-                        : "角色未登记 — 接入时带 --roles"}
+                        : t("角色未登记 — 接入时带 --roles", "No roles registered — pass --roles when enrolling")}
                     </span>
                   </div>
 
@@ -304,15 +304,17 @@ export default function Systems({
                       disabled={minting !== null}
                       onClick={() => void mint(peer.name)}
                     >
-                      {minting === peer.name ? "生成中…" : "接入令牌"}
+                      {minting === peer.name
+                        ? t("生成中…", "Issuing…")
+                        : t("接入令牌", "Onboarding token")}
                     </button>
                     <button
                       type="button"
                       className="danger"
-                      title="从注册表里删除这套认证系统"
+                      title={t("从注册表里删除这套认证系统", "Remove this auth system from the registry")}
                       onClick={() => setPendingDelete(peer)}
                     >
-                      删除
+                      {t("删除", "Delete")}
                     </button>
                   </div>
 
@@ -332,63 +334,83 @@ export default function Systems({
         <section className="panel">
           <div className="panel-head">
             <div>
-              <h2>接入 · {link.peer}</h2>
+              <h2>{t("接入 · {name}", "Onboarding · {name}", { name: link.peer })}</h2>
             </div>
             <button type="button" className="ghost" onClick={() => setLink(null)}>
-              收起
+              {t("收起", "Hide")}
             </button>
           </div>
           <p className="warn">
-            一次性令牌，{Math.round(link.expires_in / 60)} 分钟内有效，<strong>登记时作废</strong>。
-            私钥不出对方机器：它只交 CSR，证书按 CSR 签出。
+            {t("一次性令牌，", "One-time token, valid for ")}{Math.round(link.expires_in / 60)}{t(
+              " 分钟内有效，",
+              " minutes; ",
+            )}<strong>{t("登记时作废", "void once used")}</strong>{t(
+              "。私钥不出对方机器：它只交 CSR，证书按 CSR 签出。",
+              ". The private key never leaves that machine: it submits a CSR and the certificate is signed from it.",
+            )}
           </p>
           {linkNeedsAddress && (
             <p className="warn">
-              这个系统<strong>没有收数地址</strong>（被撤销了）：登记会被拒
-              —— 推不了、探不了的系统不允许接入。先在上面列表里把地址补上再过。
+              {t("这个系统", "This system has ")}<strong>{t("没有收数地址", "no endpoint")}</strong>{t(
+                "（被撤销了）：登记会被拒 —— 推不了、探不了的系统不允许接入。先在上面列表里把地址补上再过。",
+                " (it was cleared): enrolment is refused — a system that cannot be pushed to or probed is not allowed in. Add the endpoint in the list above first.",
+              )}
             </p>
           )}
 
           <div className="ticket-box">
             <p className="muted small">
-              在对方机器的初始化页（<span className="mono">/__init</span>）里填这串令牌 ——
-              它自己生成密钥、自己登记，之后收数监听自己起来。
+              {t("在对方机器的初始化页（", "On that machine's init page (")}<span className="mono">/__init</span>{t(
+                "）里填这串令牌 —— 它自己生成密钥、自己登记，之后收数监听自己起来。",
+                ") enter this token — it generates its own key, enrols itself, and starts its receiver.",
+              )}
             </p>
             <div className="token-actions">
               <code className="secret">{linkTicket}</code>
               <button type="button" onClick={() => void copyTicket()}>
-                {copied === "ticket" ? "已复制" : "复制"}
+                {copied === "ticket" ? t("已复制", "Copied") : t("复制", "Copy")}
               </button>
             </div>
             <p className="muted small">
-              这串东西就是接入授权本身（等同于一次性口令）：发完就别留在聊天记录里。
+              {t(
+                "这串东西就是接入授权本身（等同于一次性口令）：发完就别留在聊天记录里。",
+                "This string *is* the enrolment authorisation (a one-time password): hand it over, don't leave it in chat history.",
+              )}
             </p>
           </div>
         </section>
       )}
       <ConfirmDialog
         open={pendingDelete !== null}
-        title={`删除认证系统 ${pendingDelete?.name ?? ""}？`}
+        title={t("删除认证系统 {name}？", "Delete auth system {name}?", {
+          name: pendingDelete?.name ?? "",
+        })}
         requireText={pendingDelete?.name}
         busy={deleting}
         onCancel={() => setPendingDelete(null)}
         onConfirm={() => void confirmDelete()}
       >
         <p>
-          它会从「已接入」名单里消失：cred 不再往它推送、不再探活，
-          也不能再给它签发新凭据（受众列表里就没有它了）。
+          {t(
+            "它会从「已接入」名单里消失：cred 不再往它推送、不再探活，也不能再给它签发新凭据（受众列表里就没有它了）。",
+            "It disappears from the enrolled list: cred stops pushing to it and probing it, and you can no longer issue credentials for it.",
+          )}
         </p>
         {pendingIssued > 0 ? (
           <p className="warn">
-            它已经签发过 <strong>{pendingIssued}</strong> 条凭据，这些凭据不会跟着吊销 ——
-            要停用请先去「访问凭证」里逐条撤销。
+            {t("它已经签发过 ", "It has already issued ")}<strong>{pendingIssued}</strong>{t(
+              " 条凭据，这些凭据不会跟着吊销 —— 要停用请先去「访问凭证」里逐条撤销。",
+              " credential(s); they are not revoked with it — revoke them one by one under Credentials first.",
+            )}
           </p>
         ) : (
-          <p className="muted small">它还没有签发过凭据。</p>
+          <p className="muted small">{t("它还没有签发过凭据。", "It has not issued any credentials yet.")}</p>
         )}
         <p className="muted small">
-          如果它是部署栈里的系统（<span className="mono">identity/cred/onboarding/</span>
-          ），删掉后重启也不会再导入回来；要恢复得在栈里重新 localize，或直接再建一个同名系统。
+          {t("如果它是部署栈里的系统（", "If it comes from the deployment stack (")}<span className="mono">identity/cred/onboarding/</span>{t(
+            "），删掉后重启也不会再导入回来；要恢复得在栈里重新 localize，或直接再建一个同名系统。",
+            "), a restart will not bring it back; re-localize the stack or create a system with the same name.",
+          )}
         </p>
       </ConfirmDialog>
     </>

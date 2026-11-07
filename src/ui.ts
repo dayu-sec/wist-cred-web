@@ -1,4 +1,5 @@
 import { ApiError } from "./api";
+import { dateLocale, t } from "./i18n";
 
 /**
  * 版本号统一成 `vX.Y.Z…`：构建期注入的是发布 tag（自带 `v`），服务端返回纯 semver。
@@ -14,34 +15,49 @@ export function formatVersion(raw: string | null | undefined): string {
 export function describe(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401) {
-      return `未认证：请输入页面口令（口令由部署方设置在密钥文件的 cred_web_password）。`;
+      return t(
+        "未认证：请输入页面口令（口令由部署方设置在密钥文件的 cred_web_password）。",
+        "Not authenticated: enter the page password (set by the operator as cred_web_password in the secret file).",
+      );
     }
     if (error.code === "audience_not_configured") {
-      return `受众未在服务端登记（${error.message}）：先到「认证系统」页接入它。`;
+      return t(
+        "受众未在服务端登记（{msg}）：先到「认证系统」页接入它。",
+        "The audience is not registered on the server ({msg}): enroll it under Auth systems first.",
+        { msg: error.message },
+      );
     }
     if (error.code === "roles_not_registered") {
-      return `这个认证系统还没登记能验的角色（${error.message}）：到「认证系统」页生成一张接入令牌，在对方机器上带 --roles 重新登记一次。`;
+      return t(
+        "这个认证系统还没登记能验的角色（{msg}）：到「认证系统」页生成一张接入令牌，在对方机器上带 --roles 重新登记一次。",
+        "This auth system has not registered any roles yet ({msg}): issue an onboarding token under Auth systems and enroll again with --roles on that machine.",
+        { msg: error.message },
+      );
     }
     if (error.code === "no_delivery_target") {
-      return `这个认证系统没有收数地址（${error.message}）：到「认证系统」页点地址填一个。`;
+      return t(
+        "这个认证系统没有收数地址（{msg}）：到「认证系统」页点地址填一个。",
+        "This auth system has no endpoint ({msg}): add one by clicking its address under Auth systems.",
+        { msg: error.message },
+      );
     }
-    return `${error.code}：${error.message}`;
+    return `${error.code}: ${error.message}`;
   }
   return error instanceof Error ? error.message : String(error);
 }
 
 export function formatTime(epoch: number): string {
-  return new Date(epoch * 1000).toLocaleString("zh-CN", { hour12: false });
+  return new Date(epoch * 1000).toLocaleString(dateLocale(), { hour12: false });
 }
 
-/** 把秒数说成人话：`2592000` → `30 天`。 */
+/** 把秒数说成人话：`2592000` → `30 天` / `30 days`。 */
 export function humanDuration(seconds: number): string {
   const days = seconds / 86400;
-  if (Number.isInteger(days) && days >= 1) return `${days} 天`;
+  if (Number.isInteger(days) && days >= 1) return t(`${days} 天`, `${days} day(s)`);
   const hours = seconds / 3600;
-  if (Number.isInteger(hours) && hours >= 1) return `${hours} 小时`;
+  if (Number.isInteger(hours) && hours >= 1) return t(`${hours} 小时`, `${hours} hour(s)`);
   const minutes = Math.round(seconds / 60);
-  return `${minutes} 分钟`;
+  return t(`${minutes} 分钟`, `${minutes} min`);
 }
 
 /**

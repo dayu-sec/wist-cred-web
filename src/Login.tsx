@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { getPolicy } from "./api";
+import { t } from "./i18n";
 import { setPassword } from "./auth";
 import { BrandMark } from "./BrandMark";
 import { describe } from "./ui";
@@ -53,10 +54,10 @@ export default function Login({ onDone }: { onDone: () => void }) {
           <BrandMark size={44} />
         </div>
         <h1>WistCred</h1>
-        <p className="subtitle">输入访问口令，管理程序访问凭证</p>
+        <p className="subtitle">{t("输入访问口令，管理程序访问凭证", "Enter the access password to manage credentials")}</p>
 
         <label className="login-label" htmlFor="cred-password">
-          访问口令
+          {t("访问口令", "Access password")}
         </label>
         <input
           id="cred-password"
@@ -67,17 +68,20 @@ export default function Login({ onDone }: { onDone: () => void }) {
           spellCheck={false}
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          placeholder="部署方设置的页面口令"
+          placeholder={t("部署方设置的页面口令", "Password set by the operator")}
         />
 
         {error ? <div className="banner error">{error}</div> : null}
 
         <button type="submit" className="primary login-submit" disabled={busy || !value.trim()}>
-          {busy ? "验证中…" : "进入"}
+          {busy ? t("验证中…", "Checking…") : t("进入", "Enter")}
         </button>
 
         <p className="login-hint">
-          口令只存在本标签页，关掉即失效。它不是发给程序用的 token —— 那是另一把（由页面签发）。
+          {t(
+            "口令只存在本标签页，关掉即失效。它不是发给程序用的 token —— 那是另一把（由页面签发）。",
+            "The password lives only in this tab and is gone when you close it. It is not the token you hand to programs — those are issued on the page.",
+          )}
         </p>
       </form>
     </div>

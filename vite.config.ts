@@ -25,6 +25,9 @@ if (!process.env.VITE_APP_VERSION) {
 // 这些路径在 dev 里仍是真的，而不是被代理一口吃掉。
 // **发布态不注入任何东西**：口令由页面自己输，这一层不碰身份。
 const target = process.env.WIST_CRED_TARGET ?? "http://127.0.0.1:18443";
+// 目标若是本地 gops 站点栈的入口（自签证书），dev 代理就得关掉校验；否则握手直接失败。
+// 只在 vite dev 里生效，发布链路上的 TLS 由入口 nginx 终止，跟这里无关。
+const secure = !target.startsWith("https://");
 const devPassword = process.env.WIST_CRED_DEV_PASSWORD ?? "dev-only-password";
 
 export default defineConfig({
@@ -38,6 +41,7 @@ export default defineConfig({
       "/api": {
         target,
         changeOrigin: true,
+        secure,
         // 页面没带口令时才补：带了就让 cred 真的去验，别让 dev 把认证路径吃掉。
         configure: (proxy) => {
           proxy.on("proxyReq", (proxyReq, req) => {
@@ -54,6 +58,7 @@ export default defineConfig({
       "/enroll": {
         target,
         changeOrigin: true,
+        secure,
       },
     },
   },

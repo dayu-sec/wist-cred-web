@@ -9,6 +9,7 @@ import type {
   IssuePolicy,
   OnboardingState,
 } from "../api";
+import { t } from "../i18n";
 import { copyText, describe, formatTime, formatVersion, humanDuration } from "../ui";
 
 interface FormState {
@@ -40,16 +41,16 @@ function roleTone(role: string): number {
 }
 
 /** 常见有效期。`null` = 不传，服务端按上限算。 */
-const TTL_PRESETS: { label: string; seconds: number | null }[] = [
-  { label: "10 分钟", seconds: 600 },
-  { label: "1 小时", seconds: 3600 },
-  { label: "4 小时", seconds: 4 * 3600 },
-  { label: "1 天", seconds: 86400 },
-  { label: "1 周", seconds: 7 * 86400 },
-  { label: "1 个月", seconds: 30 * 86400 },
-  { label: "3 个月", seconds: 90 * 86400 },
-  { label: "1 年", seconds: 365 * 86400 },
-  { label: "永久", seconds: null },
+const TTL_PRESETS: { label: () => string; seconds: number | null }[] = [
+  { label: () => t("10 分钟", "10 min"), seconds: 600 },
+  { label: () => t("1 小时", "1 hour"), seconds: 3600 },
+  { label: () => t("4 小时", "4 hours"), seconds: 4 * 3600 },
+  { label: () => t("1 天", "1 day"), seconds: 86400 },
+  { label: () => t("1 周", "1 week"), seconds: 7 * 86400 },
+  { label: () => t("1 个月", "1 month"), seconds: 30 * 86400 },
+  { label: () => t("3 个月", "3 months"), seconds: 90 * 86400 },
+  { label: () => t("1 年", "1 year"), seconds: 365 * 86400 },
+  { label: () => t("永久", "Never"), seconds: null },
 ];
 
 /** 在给定上限内，最大的那个预设（用作默认选中）。 */
@@ -72,7 +73,6 @@ interface Props {
   boarding: OnboardingState | null;
   policy: IssuePolicy | null;
   onReload: () => void;
-  onError: (message: string) => void;
   /** 没有可选的认证系统时，引导去那一页。 */
   onGoSystems: () => void;
 }
@@ -86,10 +86,10 @@ function stateOf(item: Credential): {
   className: string;
 } {
   if (item.revoked_at !== null)
-    return { key: "revoked", label: "已撤销", className: "state revoked" };
+    return { key: "revoked", label: t("已撤销", "Revoked"), className: "state revoked" };
   if (item.expires_at * 1000 < Date.now())
-    return { key: "expired", label: "已过期", className: "state expired" };
-  return { key: "valid", label: "有效", className: "state active" };
+    return { key: "expired", label: t("已过期", "Expired"), className: "state expired" };
+  return { key: "valid", label: t("有效", "Active"), className: "state active" };
 }
 
 /**
@@ -105,7 +105,6 @@ export default function Credentials({
   boarding,
   policy,
   onReload,
-  onError,
   onGoSystems,
 }: Props) {
   const audienceOptions = boarding?.peers.map((peer) => peer.name) ?? [];
@@ -130,6 +129,10 @@ export default function Credentials({
   const [copied, setCopied] = useState(false);
   /** 重推成功的短提示（列表本身不变，不给个反馈像是没点）。 */
   const [notice, setNotice] = useState<string | null>(null);
+  /** 签发/撤销失败的错误：留在表单里，**不交给 App** —— 那边刷新成功会把它清掉。 */
+  const [formError, setFormError] = useState<string | null>(null);
+  /** 令牌块的补充说明（例如"已签发但没送达"）。 */
+  const [createdNote, setCreatedNote] = useState<string | null>(null);
 
   // 只有配了收数地址的认证系统才“推得动”；其余是手工分发，不该出现重推按钮。
   const pushableAudiences = new Set(
@@ -176,10 +179,6 @@ export default function Credentials({
     );
   }, [cap]);
 
-  // 实际到期时间：选了多久就多久，但不会真的超过上限。
-  const effectiveSeconds =
-    cap === null ? form.ttlSeconds : Math.min(form.ttlSeconds ?? cap, cap);
-
   // 切系统后，之前选的角色可能不在新系统登记的范围里 —— 退回首项；
   // 新系统一个角色都没登记，就把选择清空（它没法验任何东西）。
   useEffect(() => {
@@ -207,41 +206,69 @@ export default function Credentials({
         input.ttl_seconds = form.ttlSeconds;
       }
       const result = await createCredential(input);
+      setFormError(null);
+      setCreatedNote(null);
       setCreated(result);
       setCopied(false);
       setForm((prev) => ({ ...prev, purpose: "" }));
       onReload();
     } catch (err) {
-      // 推送失败（`credential_delivery_pending`）时凭据**已经落库**了：刷新一次，
-      // 否则人只会看到一个错误横幅，列表里那条“没交付”的记录要等下次手动刷新才出现。
+      // 推送失败（`credential_delivery_pending`）：凭据已经落库、**明文只在这一刻存在**，
+      // 服务端把 `credential` + `token` 放在错误体里 → 照样把令牌显示出来，
+      // 另加一句"没送达、可重推"。否则这条凭据永远没法用。
       if (err instanceof ApiError && err.code === "credential_delivery_pending") {
-        onReload();
+        const payload = err.payload as { credential?: CreatedCredential } | null;
+        if (payload?.credential?.token) {
+          setCreated(payload.credential);
+          setCreatedNote(
+            t(
+              "已签发，但 {name} 没有确认收到（推送失败）。令牌仍然有效：在「认证系统」确认它可联通后，点列表里这条的「重推」即可送达。",
+              "Issued, but {name} has not accepted it yet (delivery failed). The token is still valid — once it is reachable again, use “Redeliver” on this row.",
+              { name: payload.credential.audience },
+            ),
+          );
+          setCopied(false);
+          setForm((prev) => ({ ...prev, purpose: "" }));
+          setFormError(null);
+          onReload();
+          return;
+        }
       }
-      onError(describe(err));
+      setFormError(describe(err));
     } finally {
       setSubmitting(false);
     }
   }
 
   async function revoke(credentialId: string) {
-    if (!window.confirm(`撤销 ${credentialId}？撤销后该 token 立即失效，且不可恢复。`)) {
+    if (
+      !window.confirm(
+        t(
+          "撤销 {id}？撤销后该 token 立即失效，且不可恢复。",
+          "Revoke {id}? The token stops working immediately and this cannot be undone.",
+          { id: credentialId },
+        ),
+      )
+    ) {
       return;
     }
     try {
       await revokeCredential(credentialId);
       onReload();
     } catch (err) {
-      onError(describe(err));
+      setFormError(describe(err));
     }
   }
 
   async function redeliver(credentialId: string) {
     try {
       const result = await redeliverCredential(credentialId);
-      setNotice(`已重新投递到 ${result.audience}`);
+      setNotice(
+        t("已重新投递到 {name}", "Redelivered to {name}", { name: result.audience }),
+      );
       onReload();
     } catch (err) {
-      onError(describe(err));
+      setFormError(describe(err));
     }
   }
 
@@ -256,6 +283,17 @@ export default function Credentials({
     () => items.filter((item) => item.audience === form.audience),
     [items, form.audience],
   );
+  /** 列表默认只放最新的几条：过期/撤销的旧记录会把页面拉得很长。 */
+  const RECENT_LIMIT = 5;
+  const orderedItems = useMemo(
+    () => [...selectedItems].sort((a, b) => b.issued_at - a.issued_at),
+    [selectedItems],
+  );
+  const [showAll, setShowAll] = useState(false);
+  // 换系统就回到"只看最新"：上一个系统展开过，不该带到下一个。
+  useEffect(() => setShowAll(false), [form.audience]);
+  const visibleItems = showAll ? orderedItems : orderedItems.slice(0, RECENT_LIMIT);
+
   const selectedStats = useMemo(() => {
     if (!form.audience) return null;
     const counts = { total: selectedItems.length, valid: 0, expired: 0, revoked: 0 };
@@ -274,7 +312,7 @@ export default function Credentials({
           <div className="token-head">
             <strong>{notice}</strong>
             <button type="button" className="ghost" onClick={() => setNotice(null)}>
-              知道了
+              {t("知道了", "Got it")}
             </button>
           </div>
         </div>
@@ -283,8 +321,8 @@ export default function Credentials({
 
       <div className="page-split">
         {/* 这一页的主轴是"哪套认证系统"：左列选它，右边为它签发、也只看它的凭据。 */}
-        <nav className="system-nav" aria-label="认证系统">
-          <h2 className="system-nav-title">认证系统</h2>
+        <nav className="system-nav" aria-label={t("认证系统", "Auth systems")}>
+          <h2 className="system-nav-title">{t("认证系统", "Auth systems")}</h2>
           {hasAudience ? (
             <ul className="system-nav-list">
               {audienceOptions.map((audience) => {
@@ -304,13 +342,10 @@ export default function Credentials({
               })}
             </ul>
           ) : (
-            <p className="muted small">还没有认证系统。</p>
+            <p className="muted small">{t("还没有认证系统。", "No auth systems yet.")}</p>
           )}
           <div className="system-nav-foot">
-            <button type="button" className="system-nav-add" onClick={onGoSystems}>
-              ＋ 新建认证系统
-            </button>
-            <div className="version" aria-label="版本信息">
+            <div className="version" aria-label={t("版本信息", "Version info")}>
               <span className="version-item">
                 <span className="version-name">wist-cred-web</span>
                 {formatVersion(versions.web)}
@@ -330,47 +365,53 @@ export default function Credentials({
         <div className="page-split-main">
           <section className="panel">
             <div className="panel-head">
-              <div>
-                <h2>新建访问凭证</h2>
-                <p className="muted small">
-                  {hasAudience
-                    ? `这把钥匙只对 ${form.audience} 有效。`
-                    : "先接入一个认证系统，再给它签钥匙。"}
-                </p>
-              </div>
+              <h2>{t("新建访问凭证", "New credential")}</h2>
             </div>
 
             {created && (
               <div className="banner token" ref={createdRef}>
                 <div className="token-head">
-                  <strong>凭据已创建：{created.audience}</strong>
-                  <button type="button" className="ghost" onClick={() => setCreated(null)}>
-                    知道了
+                  <strong>{t("凭据已创建：{name}", "Credential created for {name}", { name: created.audience })}</strong>
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => {
+                      setCreated(null);
+                      setCreatedNote(null);
+                    }}
+                  >
+                    {t("知道了", "Got it")}
                   </button>
                 </div>
                 <p className="warn">
-                  明文只显示这一次，离开本页后服务端只会保留 sha256 摘要，无法再取回。
+                  {t(
+                    "明文只显示这一次，离开本页后服务端只会保留 sha256 摘要，无法再取回。",
+                    "The plaintext is shown only once; after you leave this page the server keeps just its sha256 digest.",
+                  )}
                 </p>
+                {createdNote && <p className="warn">{createdNote}</p>}
                 <code className="secret">{created.token}</code>
                 <div className="token-actions">
                   <button type="button" onClick={() => void copy()}>
-                    {copied ? "已复制" : "复制"}
+                    {copied ? t("已复制", "Copied") : t("复制", "Copy")}
                   </button>
                   <span className="muted">
-                    {created.credential_id} · {created.audience} · 到期{" "}
+                    {created.credential_id} · {created.audience} · {t("到期", "expires")}{" "}
                     {formatTime(created.expires_at)}
                   </span>
                 </div>
               </div>
             )}
 
+            {formError && <div className="banner error">{formError}</div>}
+
             {!hasAudience && (
               <p className="warn">
-                还没有可选的认证系统，先去{' '}
+                {t("还没有可选的认证系统，先去", "No auth system to issue for yet — enroll one under")}{' '}
                 <button type="button" className="linklike" onClick={onGoSystems}>
-                  认证系统
-                </button>{' '}
-                接入一个。
+                  {t("认证系统", "Auth systems")}
+                </button>
+                {t(" 接入一个。", " first.")}
               </p>
             )}
 
@@ -378,10 +419,12 @@ export default function Credentials({
               {/* 角色是这张表单里唯一要"想一下"的选择：给它一块自己的区域，
                   大格 + 色块 + 勾选位，而不是夹在两行小 chip 里。 */}
               <div className="role-field">
-                <div className="role-field-head">
-                  <span className="role-field-title">角色</span>
-                  <span className="role-field-hint">可多选</span>
-                </div>
+                <div className="role-field-body">
+                <div className="role-field-roles">
+                  <div className="role-field-head">
+                    <span className="role-field-title">{t("角色", "Roles")}</span>
+                    <span className="role-field-hint">{t("可多选", "multi-select")}</span>
+                  </div>
                 {peerRoles.length > 0 ? (
                   <div className="role-chips">
                     {peerRoles.map((role) => {
@@ -417,37 +460,47 @@ export default function Credentials({
                   </div>
                 ) : (
                   <div className="static-field muted">
-                    {form.audience ? "未登记角色" : "先选认证系统"}
+                    {form.audience ? t("未登记角色", "No roles registered") : t("先选认证系统", "Pick an auth system first")}
                   </div>
                 )}
-                <span className="field-hint">
-                  {peerRoles.length > 0 ? (
-                    `由 ${form.audience} 登记，只能从里面选`
-                  ) : (
-                    <>
-                      它还没登记自己能验的角色，去{' '}
-                      <button type="button" className="linklike" onClick={onGoSystems}>
-                        认证系统
-                      </button>{' '}
-                      用 <span className="mono">--roles</span> 登记一次
-                    </>
-                  )}
-                </span>
+                {peerRoles.length === 0 && (
+                  <span className="field-hint">
+                    {t("它还没登记自己能验的角色，去", "It has not registered any roles yet — go to")}{' '}
+                    <button type="button" className="linklike" onClick={onGoSystems}>
+                      {t("认证系统", "Auth systems")}
+                    </button>{' '}
+                    {t("用", "and register once with")} <span className="mono">--roles</span>
+                  </span>
+                )}
+                </div>
+
+                {/* 用途跟角色是同一件事的两面："它能干什么" + "拿它干什么"，
+                    放进同一块里，读起来就是这次签发的内容。 */}
+                <label className="role-field-purpose">
+                  <span className="role-field-title">{t("用途", "Purpose")}</span>
+                  <input
+                    required
+                    value={form.purpose}
+                    placeholder={t("例如：nightly disk inspection", "e.g. nightly disk inspection")}
+                    onChange={(event) => setForm({ ...form, purpose: event.target.value })}
+                  />
+                </label>
+                </div>
               </div>
 
               {/* 九个固定选项放下拉里是浪费：要选先得点开看一眼。直接摆出来。
                   但它是**单选**，与上面的多选角色必须长得不一样 —— 用连成一条的 segmented
                   控件（一块带分隔的横条），而不是同样一颗颗的圆 chip。 */}
               <div className="field wide">
-                <span className="field-label">有效期</span>
-                <div className="segmented" role="radiogroup" aria-label="有效期">
+                <span className="field-label">{t("有效期", "Valid for")}</span>
+                <div className="segmented" role="radiogroup" aria-label={t("有效期", "Valid for")}>
                   {TTL_PRESETS.map((preset) => {
                     const selected = form.ttlSeconds === preset.seconds;
                     const overCap =
                       preset.seconds !== null && cap !== null && preset.seconds > cap;
                     return (
                       <button
-                        key={preset.label}
+                        key={preset.label()}
                         type="button"
                         role="radio"
                         aria-checked={selected}
@@ -459,27 +512,12 @@ export default function Credentials({
                           setForm({ ...form, ttlSeconds: preset.seconds });
                         }}
                       >
-                        {preset.label}
+                        {preset.label()}
                       </button>
                     );
                   })}
                 </div>
-                <span className="field-hint">
-                  {effectiveSeconds === null
-                    ? "按服务端上限"
-                    : `到期 ${formatTime(Math.floor(Date.now() / 1000) + effectiveSeconds)}`}
-                  {cap !== null && ` · 上限 ${humanDuration(cap)}（勾“应急”可放宽）`}
-                </span>
               </div>
-              <label className="wide">
-                用途（进审计）
-                <input
-                  required
-                  value={form.purpose}
-                  placeholder="nightly disk inspection"
-                  onChange={(event) => setForm({ ...form, purpose: event.target.value })}
-                />
-              </label>
               <div className="form-actions">
                 <label className="checkbox">
                   <input
@@ -487,10 +525,10 @@ export default function Credentials({
                     checked={form.breakGlass}
                     onChange={(event) => setForm({ ...form, breakGlass: event.target.checked })}
                   />
-                  应急凭据（上限更长，使用时会告警）
+                  {t("应急凭据（上限更长，使用时会告警）", "Break-glass credential (longer cap, warns when used)")}
                 </label>
                 <button type="submit" disabled={submitting || !canSubmit}>
-                  {submitting ? "创建中…" : "创建"}
+                  {submitting ? t("创建中…", "Creating…") : t("创建", "Create")}
                 </button>
               </div>
             </form>
@@ -498,51 +536,44 @@ export default function Credentials({
 
           <section className="panel">
             <div className="panel-head">
-              <div>
-                <h2>已发放凭据</h2>
-                <p className="muted small">
-                  {form.audience
-                    ? `只统计 ${form.audience} 这一套系统。`
-                    : "在左边选一套认证系统。"}
-                </p>
-              </div>
+              <h2>{t("已发放凭据", "Issued credentials")}</h2>
               {selectedStats ? (
                 <div className="stat-row">
                   <span className="stat">
-                    <b>{selectedStats.total}</b> 签发
+                    <b>{selectedStats.total}</b> {t("签发", "issued")}
                   </span>
                   <span className="stat ok">
-                    <b>{selectedStats.valid}</b> 有效
+                    <b>{selectedStats.valid}</b> {t("有效", "active")}
                   </span>
                   <span className="stat">
-                    <b>{selectedStats.expired}</b> 过期
+                    <b>{selectedStats.expired}</b> {t("过期", "expired")}
                   </span>
                   <span className="stat crit">
-                    <b>{selectedStats.revoked}</b> 已撤销
+                    <b>{selectedStats.revoked}</b> {t("已撤销", "revoked")}
                   </span>
                 </div>
               ) : null}
             </div>
 
             {!form.audience ? (
-              <p className="muted empty">先在左边选一套认证系统。</p>
+              <p className="muted empty">{t("先在左边选一套认证系统。", "Pick an auth system on the left.")}</p>
             ) : selectedItems.length === 0 ? (
               <p className="muted empty">
-                {loading ? "加载中…" : "这套系统还没有签发过凭据。"}
+                {loading ? t("加载中…", "Loading…") : t("这套系统还没有签发过凭据。", "No credentials issued for this system yet.")}
               </p>
             ) : (
-              <table>
+              <table className="issued">
                 <thead>
                   <tr>
-                    <th>用途</th>
-                    <th>角色</th>
-                    <th>到期</th>
-                    <th>状态</th>
+                    <th>{t("用途", "Purpose")}</th>
+                    <th>{t("角色", "Roles")}</th>
+                    <th>{t("到期", "Expires")}</th>
+                    <th>{t("状态", "Status")}</th>
                     <th />
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedItems.map((item) => {
+                  {visibleItems.map((item) => {
                     const state = stateOf(item);
                     return (
                       <tr
@@ -551,15 +582,18 @@ export default function Credentials({
                           created?.credential_id === item.credential_id ? "fresh" : undefined
                         }
                       >
-                        <td className="small">
-                          {item.purpose}
-                          <div className="muted small mono">
-                            {item.owner} · {item.credential_id}
+                        <td className="subject">
+                          <div className="subject-purpose">{item.purpose}</div>
+                          <div
+                            className="subject-meta muted small mono"
+                            title={`${item.owner} · ${item.credential_id}`}
+                          >
+                            {item.credential_id}
                           </div>
                         </td>
-                        <td className="mono small">{item.roles.join(", ") || "—"}</td>
-                        <td className="mono small">{formatTime(item.expires_at)}</td>
-                        <td>
+                        <td className="mono small roles">{item.roles.join(", ") || "—"}</td>
+                        <td className="mono small when">{formatTime(item.expires_at)}</td>
+                        <td className="state-cell">
                           <span className={state.className}>{state.label}</span>
                         </td>
                         <td className="right">
@@ -569,10 +603,13 @@ export default function Credentials({
                                 type="button"
                                 className="ghost"
                                 disabled={item.revoked_at !== null}
-                                title="把同一摘要再推给这个认证系统（推送失败后补）"
+                                title={t(
+                                  "把同一摘要再推给这个认证系统（推送失败后补）",
+                                  "Push the same digest to this auth system again (after a failed delivery)",
+                                )}
                                 onClick={() => void redeliver(item.credential_id)}
                               >
-                                重推
+                                {t("重推", "Redeliver")}
                               </button>
                             )}
                             <button
@@ -581,7 +618,7 @@ export default function Credentials({
                               disabled={item.revoked_at !== null}
                               onClick={() => void revoke(item.credential_id)}
                             >
-                              撤销
+                              {t("撤销", "Revoke")}
                             </button>
                           </div>
                         </td>
@@ -590,6 +627,19 @@ export default function Credentials({
                   })}
                 </tbody>
               </table>
+            )}
+            {selectedItems.length > RECENT_LIMIT && (
+              <p className="list-more">
+                <button
+                  type="button"
+                  className="linklike"
+                  onClick={() => setShowAll((prev) => !prev)}
+                >
+                  {showAll
+                    ? t("只看最新 {n} 条", "Show latest {n} only", { n: RECENT_LIMIT })
+                    : t("显示全部 {n} 条", "Show all {n}", { n: selectedItems.length })}
+                </button>
+              </p>
             )}
           </section>
         </div>

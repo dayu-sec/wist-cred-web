@@ -6,6 +6,7 @@ import { AUTH_CHANGED_EVENT, clearPassword, getPassword } from "./auth";
 import { BrandMark } from "./BrandMark";
 import Credentials from "./pages/Credentials";
 import Systems from "./pages/Systems";
+import { setAppLocale, t, useLocale } from "./i18n";
 import Login from "./Login";
 import { describe } from "./ui";
 
@@ -14,9 +15,9 @@ const VERSION = import.meta.env.VITE_APP_VERSION ?? "";
 /** 两个页面。用 hash 路由，刷新和分享都能落回同一页（不引 react-router）。 */
 type Tab = "credentials" | "systems";
 
-const TABS: { key: Tab; label: string; hash: string }[] = [
-  { key: "credentials", label: "访问凭证", hash: "#/credentials" },
-  { key: "systems", label: "认证系统", hash: "#/systems" },
+const TABS: { key: Tab; label: () => string; hash: string }[] = [
+  { key: "credentials", label: () => t("访问凭证", "Credentials"), hash: "#/credentials" },
+  { key: "systems", label: () => t("认证系统", "Systems"), hash: "#/systems" },
 ];
 
 function tabFromHash(): Tab {
@@ -24,10 +25,10 @@ function tabFromHash(): Tab {
 }
 
 export default function App() {
+  const locale = useLocale();
   const [tab, setTab] = useState<Tab>(tabFromHash);
 
   // 登录态：口令是本标签页里的（见 auth.ts）；`locked` = 服务端说“需要口令”。
-  const [hasPassword, setHasPassword] = useState(() => Boolean(getPassword()));
   const [locked, setLocked] = useState(false);
 
   const [items, setItems] = useState<Credential[]>([]);
@@ -110,9 +111,7 @@ export default function App() {
   // 口令被清掉（点退出 / 服务端说不对）→ 回登录框。
   useEffect(() => {
     const onAuthChanged = () => {
-      const next = Boolean(getPassword());
-      setHasPassword(next);
-      if (!next) setLocked(true);
+      if (!getPassword()) setLocked(true);
     };
     window.addEventListener(AUTH_CHANGED_EVENT, onAuthChanged);
     return () => window.removeEventListener(AUTH_CHANGED_EVENT, onAuthChanged);
@@ -157,26 +156,45 @@ export default function App() {
     <div className="page">
       <header className="topbar">
         <div className="brand">
-          <BrandMark size={34} />
-          <div>
-            <h1>WistCred</h1>
-            <p className="subtitle">认证系统接入 · 程序访问凭证签发与撤销</p>
-          </div>
+          <BrandMark size={26} />
+          <h1>WistCred</h1>
         </div>
         <div className="topbar-right">
+          {/* 语言开关：标签写**点下去会切到的那种语言**（中文界面显示 EN，英文界面显示 中文）。 */}
           <button
             type="button"
-            className="ghost"
-            onClick={() => void refresh()}
-            disabled={loading}
+            className="locale-toggle"
+            onClick={() => setAppLocale(locale === "zh" ? "en" : "zh")}
+            title={locale === "zh" ? "Switch to English" : "切换到中文"}
+            aria-label={t("切换界面语言", "Switch interface language")}
           >
-            {loading ? "刷新中…" : "刷新"}
+            {locale === "zh" ? "EN" : "中文"}
           </button>
-          {hasPassword ? (
-            <button type="button" className="ghost" onClick={logout}>
-              退出
-            </button>
-          ) : null}
+          {/* 一直显示：即使这个部署没配口令（页面直接可用），"退出"也是人找得到的出口
+              —— 点了就回登录框，把本地口令清掉。图标按钮，给 title / aria-label 兜底。 */}
+          <button
+            type="button"
+            className="icon-button"
+            onClick={logout}
+            title={t("退出", "Sign out")}
+            aria-label={t("退出", "Sign out")}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+          </button>
         </div>
       </header>
 
@@ -188,7 +206,7 @@ export default function App() {
             className={item.key === tab ? "tab active" : "tab"}
             onClick={() => go(item.key)}
           >
-            {item.label}
+            {item.label()}
             {item.key === "systems" && boarding ? (
               <span className="badge">{boarding.peers.length}</span>
             ) : null}
@@ -221,14 +239,9 @@ export default function App() {
           boarding={boarding}
           policy={policy}
           onReload={() => void reload()}
-          onError={setError}
           onGoSystems={() => go("systems")}
         />
       )}
-
-      <footer className="footer">
-        凭据明文从不落盘；服务端只保留 sha256 摘要。认证系统的私钥只在它自己的机器上。
-      </footer>
     </div>
   );
 }

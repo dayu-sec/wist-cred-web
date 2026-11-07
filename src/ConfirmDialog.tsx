@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
+import { t } from "./i18n";
+
 interface Props {
   open: boolean;
   title: string;
@@ -30,7 +32,7 @@ interface Props {
 export function ConfirmDialog({
   open,
   title,
-  confirmLabel = "确认删除",
+  confirmLabel,
   busy = false,
   requireText,
   onCancel,
@@ -74,7 +76,7 @@ export function ConfirmDialog({
       {requireText !== undefined && (
         <label className="confirm-typed">
           <span>
-            输入 <span className="mono">{requireText}</span> 确认
+            {t("输入", "Type")} <span className="mono">{requireText}</span> {t("确认", "to confirm")}
           </span>
           <input
             autoFocus
@@ -92,7 +94,7 @@ export function ConfirmDialog({
       )}
       <div className="confirm-actions">
         <button type="button" className="ghost" onClick={onCancel} disabled={busy}>
-          取消
+          {t("取消", "Cancel")}
         </button>
         <button
           type="button"
@@ -100,7 +102,7 @@ export function ConfirmDialog({
           onClick={onConfirm}
           disabled={busy || !matched}
         >
-          {busy ? "处理中…" : confirmLabel}
+          {busy ? t("处理中…", "Working…") : (confirmLabel ?? t("确认删除", "Delete"))}
         </button>
       </div>
     </dialog>

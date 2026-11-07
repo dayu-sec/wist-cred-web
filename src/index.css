@@ -28,22 +28,25 @@ body {
 .page {
   max-width: 1080px;
   margin: 0 auto;
-  padding: 28px 20px 48px;
+  padding: 20px 20px 40px;
 }
 
+/* 头部一行到底：徽标 + 名字 + 一句副标题，右边是操作按钮。
+   原来是"大字 + 第二行副标题"，占掉将近 90px，现在压到 40px 上下。 */
 .topbar {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding-bottom: 18px;
+  padding-bottom: 12px;
   border-bottom: 1px solid var(--border);
 }
 
 .topbar h1 {
   margin: 0;
-  font-size: 22px;
-  letter-spacing: 0.5px;
+  font-size: 18px;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
 }
 
 /* 品牌标识：徽章渐变与 /favicon.svg 同色（紫罗兰 → 洋红 → 玫红）。
@@ -51,7 +54,8 @@ body {
 .brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  min-width: 0;
 }
 
 .brand-mark {
@@ -65,16 +69,54 @@ body {
     0 6px 16px rgba(139, 92, 246, 0.32);
 }
 
+/* 副标题（登录页用这个类；顶栏的那一句是 `.brand-tag`）。 */
 .subtitle {
   margin: 6px 0 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12.5px;
 }
 
 .topbar-right {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+/* 顶栏右侧两颗"轻按钮"：语言与退出。都不画边框 —— 顶栏只有它们两个，
+   加边框反而像两个不相干的输入框；hover 只给一层淡底。 */
+button.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-size: 0;
+}
+
+button.icon-button:hover:not(:disabled) {
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+button.locale-toggle {
+  padding: 4px 8px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+button.locale-toggle:hover:not(:disabled) {
+  background: var(--panel-2);
+  color: var(--text);
 }
 
 /* 三个版本号（左栏底部）：一行一项，名字在左、版本靠右对齐。 */
@@ -344,15 +386,6 @@ label {
   max-width: 340px;
 }
 
-.sentence-hint {
-  margin: 8px 0 0;
-}
-
-/* 句子行下面接普通表单控件时留点呼吸。 */
-.sentence-hint + .grid {
-  margin-top: 16px;
-}
-
 /* 只有一个选项时的“只读字段”：长得像输入框，但不可交互。 */
 .static-field {
   padding: 8px 10px;
@@ -394,7 +427,7 @@ select:disabled {
 .tabs {
   display: flex;
   gap: 6px;
-  margin-top: 16px;
+  margin-top: 12px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -713,30 +746,13 @@ tr:last-child td {
   border-radius: 10px;
 }
 
-/* 底部：新建入口 + 三个版本号。`margin-top: auto` 把它们按到这一列的底部。 */
+/* 底部只剩版本号：`margin-top: auto` 把它按到这一列的底部。 */
 .system-nav-foot {
   display: flex;
   flex-direction: column;
-  gap: 14px;
   margin-top: auto;
   padding-top: 14px;
   border-top: 1px solid var(--border);
-}
-
-.system-nav-add {
-  padding: 7px 10px;
-  border: 1px dashed var(--border);
-  border-radius: 6px;
-  background: none;
-  color: var(--muted);
-  font-size: 12.5px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.system-nav-add:hover {
-  border-color: var(--accent);
-  color: var(--text);
 }
 
 .system-nav-title {
@@ -787,6 +803,59 @@ tr:last-child td {
   font-weight: 600;
 }
 
+/* 已发放凭据表：**定宽列**，不然英文文案（更长的 Redeliver / 日期）会把每一列挤成
+   不同的宽度，行与行之间对不齐。每格单行 + 省略号，行高也稳定。 */
+table.issued {
+  table-layout: fixed;
+}
+
+table.issued th:nth-child(2) {
+  width: 120px;
+}
+
+table.issued th:nth-child(3) {
+  width: 172px;
+}
+
+table.issued th:nth-child(4) {
+  width: 104px;
+}
+
+table.issued th:nth-child(5) {
+  width: 170px;
+}
+
+/* 行内动作按钮收窄一档：英文 Redeliver 比"重推"宽，不收窄会把"用途"列挤没。 */
+table.issued .row-actions button {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+table.issued td {
+  vertical-align: middle;
+}
+
+table.issued .subject-purpose,
+table.issued .subject-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+table.issued .roles,
+table.issued .when {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 列表底部那行"显示全部 / 只看最新"：右对齐、不抢视觉。 */
+.list-more {
+  margin: 12px 0 0;
+  text-align: right;
+  font-size: 12px;
+}
+
 /* 刚签发的那一行：淡淡地提一下，方便在长列表里找到它（点了「知道了」就消失）。 */
 tbody tr.fresh td {
   background: rgba(77, 163, 255, 0.07);
@@ -821,7 +890,7 @@ tbody tr.fresh td {
    带边框的浅底、放大一档的格子、每格一个色系和勾选位。 */
 .role-field {
   margin-top: 12px;
-  padding: 14px 16px 12px;
+  padding: 14px 16px 14px;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--panel-2);
@@ -844,11 +913,35 @@ tbody tr.fresh td {
   font-size: 11px;
 }
 
+/* 卡片里两栏：左边角色（多选），右边用途（一行文字）。
+   —— "它能干什么" 与 "拿它干什么" 放在同一块，签发时不用上下找。 */
+.role-field-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 340px);
+  gap: 18px;
+  align-items: start;
+}
+
+.role-field-roles {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.role-field-purpose {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.role-field-purpose input {
+  width: 100%;
+}
+
 .role-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 10px 0 8px;
 }
 
 /* 未选中也带色底（13%）+ 同色描边；选中加浓到 40% + 白字 + 勾。
@@ -1044,13 +1137,6 @@ tbody tr.fresh td {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.footer {
-  margin-top: 26px;
-  color: var(--muted);
-  font-size: 11px;
-  text-align: center;
 }
 
 /* ── 登录门（页面口令）────────────────────────────────────────────────────
